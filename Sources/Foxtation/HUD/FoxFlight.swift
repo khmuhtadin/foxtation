@@ -42,11 +42,14 @@ final class FoxFlight: ObservableObject {
     private(set) var startDate = Date()
     /// Flies to the left instead of the right (pill on the right screen edge).
     private(set) var mirrored = false
+    /// Keeps the whole flight above the pill (pill at the bottom of the screen).
+    private(set) var raised = false
     /// Snapshots render a fixed moment instead of the live clock.
     private(set) var fixedTime: Double?
 
-    func start(mirrored: Bool) {
+    func start(mirrored: Bool, raised: Bool) {
         self.mirrored = mirrored
+        self.raised = raised
         startDate = Date()
         fixedTime = nil
         isFlying = true
@@ -56,8 +59,9 @@ final class FoxFlight: ObservableObject {
         isFlying = false
     }
 
-    func freeze(at time: Double, mirrored: Bool) {
+    func freeze(at time: Double, mirrored: Bool, raised: Bool = false) {
         self.mirrored = mirrored
+        self.raised = raised
         fixedTime = time
         isFlying = true
     }
@@ -127,8 +131,9 @@ final class FoxFlight: ObservableObject {
     ]
 
     /// Position, scale and banking at time `t` (pill-relative).
-    private static func sample(_ t: Double, mirrored: Bool) -> (point: CGPoint, scale: CGFloat, rotation: Double) {
-        let points = keys.map { CGPoint(x: mirrored && $0.mirrors ? -$0.x : $0.x, y: $0.y) }
+    private static func sample(_ t: Double, mirrored: Bool, raised: Bool = false) -> (point: CGPoint, scale: CGFloat, rotation: Double) {
+        // Raised: the loop below the pill folds up above it instead.
+        let points = keys.map { CGPoint(x: mirrored && $0.mirrors ? -$0.x : $0.x, y: raised ? -abs($0.y) : $0.y) }
         let t = min(max(t, keys[0].t), landing)
         var i = 0
         while i < keys.count - 2 && t > keys[i + 1].t { i += 1 }
@@ -161,7 +166,7 @@ final class FoxFlight: ObservableObject {
         var flipped: Bool
     }
 
-    static func sprites(at t: Double, mirrored: Bool) -> [Sprite] {
+    static func sprites(at t: Double, mirrored: Bool, raised: Bool) -> [Sprite] {
         let pill = CGPoint(x: HUDMetrics.pillRect.midX, y: HUDMetrics.pillRect.midY)
         var sprites: [Sprite] = []
 
@@ -174,7 +179,7 @@ final class FoxFlight: ObservableObject {
 
         // 4–7 · the flight.
         guard t >= keys[0].t && t < end else { return sprites }
-        let (point, scale, rotation) = sample(t, mirrored: mirrored)
+        let (point, scale, rotation) = sample(t, mirrored: mirrored, raised: raised)
         let center = CGPoint(x: pill.x + point.x, y: pill.y + point.y)
         let fadeIntoSlot = 1 - ramp(t, landing, end)
         for (index, entry) in poses.enumerated() {
@@ -229,12 +234,14 @@ final class FoxFlight: ObservableObject {
         let half = CGSize(width: HUDMetrics.pillSize.width / 2, height: HUDMetrics.pillSize.height / 2)
         var bounds = CGRect(x: -half.width, y: -half.height, width: half.width * 2, height: half.height * 2)
         for mirrored in [false, true] {
-            var t = keys[0].t
-            while t <= landing {
-                let (point, scale, _) = sample(t, mirrored: mirrored)
-                let r = spriteSize * scale / 2 + 14  // + glow
-                bounds = bounds.union(CGRect(x: point.x - r, y: point.y - r, width: r * 2, height: r * 2))
-                t += 0.01
+            for raised in [false, true] {
+                var t = keys[0].t
+                while t <= landing {
+                    let (point, scale, _) = sample(t, mirrored: mirrored, raised: raised)
+                    let r = spriteSize * scale / 2 + 14  // + glow
+                    bounds = bounds.union(CGRect(x: point.x - r, y: point.y - r, width: r * 2, height: r * 2))
+                    t += 0.01
+                }
             }
             for (point, _, _) in sparkles(1, mirrored: mirrored) {
                 bounds = bounds.union(CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16))
@@ -280,7 +287,7 @@ struct HUDStage: View {
 
                 if flight.isFlying {
                     orb(t, raw: raw).position(pill)
-                    ForEach(FoxFlight.sprites(at: t, mirrored: flight.mirrored), id: \.pose) { sprite in
+                    ForEach(FoxFlight.sprites(at: t, mirrored: flight.mirrored, raised: flight.raised), id: \.pose) { sprite in
                         if let image = FoxFlight.images[sprite.pose] {
                             Image(nsImage: image)
                                 .resizable()

@@ -45,7 +45,7 @@ extension HUDModel {
         model.contentOpacity = FoxFlight.ramp(time, FoxFlight.landingReal + 0.06, FoxFlight.landingReal + 0.28)
         model.slotOpacity = FoxFlight.ramp(time, FoxFlight.landingReal, FoxFlight.landingReal + 0.15)
         let flight = FoxFlight()
-        flight.freeze(at: time, mirrored: placement == .rightEdge)
+        flight.freeze(at: time, mirrored: placement == .rightEdge, raised: placement == .bottomCenter)
         return (model, flight)
     }
 }
@@ -140,7 +140,7 @@ enum HUDSnapshots {
 
         // The entry flight, frame by frame (storyboard scenes 1–8); mirrored for the right edge.
         let times = [0.1, 0.2, 0.25, 0.3, 0.35, 0.45, 0.55, 0.65, 0.85, 1.1, 1.4, 1.75, 2.05, 2.35]
-        for (placement, prefix) in [(HUDPlacement.topCenter, "flight"), (.rightEdge, "flight-mirrored")] {
+        for (placement, prefix) in [(HUDPlacement.topCenter, "flight"), (.rightEdge, "flight-mirrored"), (.bottomCenter, "flight-bottom")] {
             for (index, time) in times.enumerated() {
                 let (model, flight) = HUDModel.flightFrame(time, placement: placement)
                 try write(HUDStage(model: model, flight: flight).background(wallpaper),

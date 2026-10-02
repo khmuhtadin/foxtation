@@ -43,7 +43,7 @@ extension HUDModel {
             return
         }
 
-        flight.start(mirrored: placement == .rightEdge)
+        flight.start(mirrored: placement == .rightEdge, raised: placement == .bottomCenter)
         entryTask = Task { @MainActor [weak self] in
             do {
                 try await Task.sleep(for: .seconds(FoxFlight.landingReal))

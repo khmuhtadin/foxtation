@@ -3,13 +3,14 @@ import ApplicationServices
 
 /// Where the dictation pill sits on screen.
 enum HUDPlacement: String, CaseIterable {
-    case rightEdge, leftEdge, topCenter
+    case rightEdge, leftEdge, topCenter, bottomCenter
 
     var label: String {
         switch self {
         case .rightEdge: return "Top right"
         case .leftEdge:  return "Top left"
         case .topCenter: return "Top center"
+        case .bottomCenter: return "Bottom center"
         }
     }
 }
@@ -75,6 +76,10 @@ enum HUDScreen {
             pillX = visible.minX + 20
         case .topCenter:
             pillTop = top - 16
+            pillX = visible.midX - pill.width / 2
+        case .bottomCenter:
+            // visibleFrame already ends above the Dock.
+            pillTop = visible.minY + 24 + pill.height
             pillX = visible.midX - pill.width / 2
         }
         // The window extends past the pill by the flight margins; parts that
