@@ -23,23 +23,23 @@ cp Resources/MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 cp -R Resources/Fox "$APP/Contents/Resources/Fox"
 chmod +x "$APP/Contents/MacOS/Foxtation"
 
-# macOS keys Microphone and Accessibility grants to the code signature. With an
-# ad-hoc signature the identity is the cdhash, so every rebuild looks like a new
-# app and both permissions are dropped. A real certificate gives a stable
-# identity, so the grants survive rebuilds.
-IDENTITY="${FOXTATION_SIGN_IDENTITY:-}"
-if [ -z "$IDENTITY" ]; then
-  IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
-    | sed -n 's/.*"\(.*\)".*/\1/p' | head -1 || true)
+# macOS keys Microphone and Accessibility grants to the code signature. An
+# ad-hoc signature changes with every build, so grants would be lost on each
+# update. Signing with the same "Foxtation" certificate (self-signed, in the
+# maintainer's keychain) keeps the identity stable across builds and releases.
+# Without that certificate (e.g. building from a fresh clone) it falls back to
+# ad-hoc, which is fine for trying the app locally.
+IDENTITY="${FOXTATION_SIGN_IDENTITY:-Foxtation}"
+if [ "$IDENTITY" != "-" ] && ! security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
+  IDENTITY="-"
 fi
 
-if [ -n "$IDENTITY" ]; then
-  echo "==> Signing with: $IDENTITY"
-  codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
+if [ "$IDENTITY" = "-" ]; then
+  echo "==> Signing ad-hoc (permissions reset on every rebuild)"
 else
-  echo "==> Signing (ad-hoc — permissions will reset on every rebuild)"
-  codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
+  echo "==> Signing with: $IDENTITY"
 fi
+codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
 
 echo "==> Done: $APP"
 echo "    Open with:  open $APP"

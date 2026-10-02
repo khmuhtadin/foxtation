@@ -23,9 +23,18 @@
 
 ## Signing
 
-Release builds are ad-hoc signed and not notarized, so macOS blocks the first
-launch of a downloaded copy (the README explains how to allow it; the Homebrew
-cask clears the quarantine flag itself). With an Apple Developer ID the build
-can be signed with `FOXTATION_SIGN_IDENTITY="Developer ID Application: …"` (plus
-`--options runtime --timestamp` in `build.sh`),
-then notarized with `xcrun notarytool submit` and `xcrun stapler staple`.
+Builds are signed with a self-signed certificate named **Foxtation** that lives
+in the maintainer's login keychain. Because the signature stays the same from
+one release to the next, macOS keeps a user's Microphone and Accessibility
+permissions across updates. `scripts/make-dmg.sh` refuses to build without it.
+
+**Back it up.** Export it from Keychain Access (My Certificates → Foxtation →
+Export, `.p12`). If it is lost, the next release gets a new signature and every
+user has to grant both permissions once more.
+
+The app is not notarized, so macOS still blocks the first launch of a
+downloaded DMG (the README explains how to allow it; the Homebrew cask clears
+the quarantine flag itself). Notarization needs a paid Apple Developer ID:
+sign with `FOXTATION_SIGN_IDENTITY="Developer ID Application: …"` plus
+`--options runtime --timestamp`, then `xcrun notarytool submit` and
+`xcrun stapler staple`.

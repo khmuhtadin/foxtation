@@ -7,9 +7,13 @@ cd "$(dirname "$0")/.."
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
 
-# Releases are ad-hoc signed: a personal development certificate means nothing
-# on other Macs and would embed the developer's Apple ID in the download.
-FOXTATION_SIGN_IDENTITY=- ./build.sh
+# Releases must carry the stable "Foxtation" signature, or every update would
+# make users grant Microphone and Accessibility again.
+if ! security find-certificate -c Foxtation >/dev/null 2>&1; then
+  echo "error: the \"Foxtation\" signing certificate is not in the keychain" >&2
+  exit 1
+fi
+FOXTATION_SIGN_IDENTITY=Foxtation ./build.sh
 
 STAGE=$(mktemp -d)
 cp -R dist/Foxtation.app "$STAGE/"
