@@ -4,19 +4,18 @@ cask "foxtation" do
 
   url "https://github.com/khmuhtadin/foxtation/releases/download/v#{version}/Foxtation-#{version}.dmg"
   name "Foxtation"
-  desc "Local voice dictation for macOS, with a fox"
+  desc "Local voice dictation with a fox"
   homepage "https://github.com/khmuhtadin/foxtation"
 
-  depends_on macos: ">= :sonoma"
   depends_on arch: :arm64
   depends_on formula: "uv"
+  depends_on macos: :sonoma
 
   app "Foxtation.app"
 
   # The app isn't notarized yet; without this macOS refuses to open it.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Foxtation.app"]
+  preflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{staged_path}}/Foxtation.app"]
   end
 
   zap trash: [
