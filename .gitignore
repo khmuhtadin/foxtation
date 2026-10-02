@@ -1,0 +1,21 @@
+# Build output
+.build/
+dist/
+*.dmg
+.swiftpm/
+xcuserdata/
+
+# Local runtimes and models
+.mlxenv/
+models/
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+
+# Not part of the app
+launch-video/
+
+# macOS
+.DS_Store
