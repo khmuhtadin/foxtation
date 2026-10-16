@@ -13,12 +13,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hud = HUD()
     private var statusItem: NSStatusItem?
     private var hotKey: HotKey?
-    private var settingsWindow: SettingsWindow?
+    private let library = Library.shared
+    private lazy var model = AppModel(settings: settings, library: library)
+    private var mainWindow: MainWindow?
     private var phase: Phase = .idle
     private var currentCapture: URL?
     private var lastTranscript: String?
     /// The app the user is dictating into, captured when recording starts.
-    private var targetApp: String?
+    private var target = AppRef(bundleID: "", name: "")
     /// Bumped on every finish/cancel so a stale transcription result is dropped.
     private var session = 0
     private var registeredHotKey: (code: UInt32, modifiers: UInt32)?
@@ -59,6 +61,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Foxtation: %@", message)
             self?.refreshStatusItem()
         }
+        MLXRuntime.shared.onChange = { [weak self] in self?.model.engineTick += 1 }
+        ModelStore.shared.onChange = { [weak self] in self?.model.engineTick += 1 }
+        model.onSettingsChanged = { [weak self] in self?.settingsChanged() }
+        model.onStartDictation = { [weak self] in self?.startFromWindow() }
+        library.prune(settings.historyRetention)
         MLXRuntime.shared.installWorkerScript()
         if settings.engine == .mlx, settings.keepModelLoaded, MLXRuntime.shared.readyPython() != nil {
             MLXEngine.shared.preload(repo: settings.mlxModel)
@@ -67,7 +74,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.refreshStatusItem()
-            self.settingsWindow?.reload()
             self.showStartupGuidanceIfNeeded()
         }
     }
@@ -108,7 +114,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.hotKeyCode = previous.code
             settings.hotKeyModifiers = previous.modifiers
             registerHotKey()
-            settingsWindow?.reload()
         }
     }
 
@@ -153,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // A quick tap. The second of two taps switches to hands-free;
         // a lone tap is dropped.
-        if now.timeIntervalSince(lastTapAt) < 0.5 {
+        if settings.handsFree, now.timeIntervalSince(lastTapAt) < 0.5 {
             lastTapAt = .distantPast
             handsFree = true
         } else {
@@ -200,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .mlx:
             guard MLXRuntime.shared.readyPython() != nil else {
                 hud.show(.error("MLX runtime not installed — open Settings › Engine and press Set Up"))
-                showSettings()
+                showMainWindow(settings: .engine)
                 return
             }
             guard MLXEngine.workerScriptURL() != nil else {
@@ -214,13 +219,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             guard !settings.modelPath.isEmpty, FileManager.default.fileExists(atPath: settings.modelPath) else {
                 hud.show(.error("No speech model selected — pick one in Settings › Engine"))
-                showSettings()
+                showMainWindow(settings: .engine)
                 return
             }
         }
 
         wireRecorder()
-        targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
+        let front = NSWorkspace.shared.frontmostApplication
+        target = AppRef(bundleID: front?.bundleIdentifier ?? "", name: front?.localizedName ?? "")
         do {
             try recorder.start()
             phase = .recording
@@ -255,54 +261,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         session += 1
         let mySession = session
+        let target = self.target
         currentCapture = capture
         phase = .transcribing
         if settings.showHUD { hud.show(.working) }
         refreshStatusItem()
 
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { try? FileManager.default.removeItem(at: capture) }
+            var keptAudio = false
+            defer { if !keptAudio { try? FileManager.default.removeItem(at: capture) } }
 
+            let raw: Transcript
             do {
-                let raw = try await self.transcribe(audio: capture)
-                let transcript: Transcript
-                do {
-                    transcript = try await self.cleanUp(raw)
-                } catch {
-                    // Nothing is pasted, but the raw text stays reachable through Copy Last.
-                    await MainActor.run {
-                        guard self.session == mySession else { return }
-                        self.currentCapture = nil
-                        self.phase = .idle
-                        self.lastTranscript = raw.text
-                        self.refreshStatusItem()
-                        self.hud.show(.error(error.localizedDescription + " — raw text in Copy Last"))
-                    }
-                    return
-                }
-                await MainActor.run {
-                    guard self.session == mySession else { return }  // cancelled meanwhile
-                    self.currentCapture = nil
-                    self.phase = .idle
-                    self.lastTranscript = transcript.text
-                    self.refreshStatusItem()
-                    self.deliver(transcript)
-                }
+                raw = try await self.transcribe(audio: capture)
             } catch {
-                await MainActor.run {
-                    guard self.session == mySession else { return }  // cancelled meanwhile
-                    self.currentCapture = nil
-                    self.phase = .idle
-                    self.refreshStatusItem()
-                    self.hud.show(.error(error.localizedDescription))
-                }
+                guard self.session == mySession else { return }  // cancelled meanwhile
+                self.finishPhase()
+                self.hud.show(.error(error.localizedDescription))
+                return
             }
+            guard self.session == mySession else { return }
+
+            // Foxtation Cloud first; any failure falls back to the raw transcript.
+            var cleaned = raw.text
+            var changes: CleanupChanges?
+            var failure: CloudError?
+            if self.settings.cloudReady, !raw.text.isEmpty {
+                if self.settings.showHUD { self.hud.show(.cleaning(app: target.name)) }
+                do {
+                    let reply = try await CloudCleanup.clean(self.cleanupRequest(raw, target: target),
+                                                             licenseKey: self.settings.licenseKey,
+                                                             activationID: self.settings.activationID)
+                    cleaned = reply.text
+                    changes = reply.changes
+                    if let usage = reply.usage { self.model.usage = usage }
+                } catch {
+                    failure = error as? CloudError ?? .server(error.localizedDescription)
+                    if case .dailyLimit(let usage) = failure, let usage { self.model.usage = usage }
+                }
+                guard self.session == mySession else { return }
+            }
+
+            // Local replacements and snippets apply either way.
+            let group = self.library.styles.group(for: target.bundleID)
+            let rawText = TextRules.apply(raw.text, dictionary: self.library.dictionary,
+                                          snippets: self.library.snippets, group: group).text
+            let final = TextRules.apply(cleaned, dictionary: self.library.dictionary,
+                                        snippets: self.library.snippets, group: group)
+            self.countSnippets(final.used)
+
+            self.finishPhase()
+            self.lastTranscript = final.text
+            let cloudUsed = self.settings.cloudReady && failure == nil
+            let undo: (() -> Void)? = cloudUsed && final.text != rawText ? { [weak self] in self?.undoCleanup(rawText) } : nil
+            self.deliver(final.text, failure: failure, undo: undo)
+
+            keptAudio = self.record(HistoryEntry(date: Date(), appName: target.name, bundleID: target.bundleID,
+                                                 raw: raw.text, final: final.text,
+                                                 words: TextRules.wordCount(final.text), seconds: seconds,
+                                                 cloudUsed: cloudUsed, changes: changes),
+                                    audio: capture)
         }
-        _ = seconds
     }
 
-    private func cancelTranscription() {
+    private func finishPhase() {
+        currentCapture = nil
+        phase = .idle
+        refreshStatusItem()
+    }
+
+        private func cancelTranscription() {
         handsFree = false
         if phase == .recording {
             recorder.cancel()
@@ -335,26 +364,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Foxtation Cloud cleanup when it's switched on and licensed; otherwise the raw transcript.
-    private func cleanUp(_ transcript: Transcript) async throws -> Transcript {
-        guard settings.cloudCleanup, !settings.activationID.isEmpty, !transcript.text.isEmpty else { return transcript }
-        var cleaned = transcript
-        cleaned.text = try await CloudCleanup.clean(transcript.text,
-                                                    language: transcript.language,
-                                                    app: targetApp,
-                                                    licenseKey: settings.licenseKey,
-                                                    activationID: settings.activationID)
-        return cleaned
+    /// What Foxtation Cloud gets: the text plus the user's dictionary,
+    /// snippet cues and the style of the app's group, clamped to server limits.
+    private func cleanupRequest(_ transcript: Transcript, target: AppRef) -> CleanupRequest {
+        let vocabulary = TextRules.vocabulary(library.dictionary)
+        let cues = TextRules.snippetCues(library.snippets)
+        let group = library.styles.group(for: target.bundleID)
+        return CleanupRequest(
+            text: transcript.text,
+            language: transcript.language,
+            app: settings.shareAppName && !target.name.isEmpty ? String(target.name.prefix(64)) : nil,
+            vocabulary: vocabulary.isEmpty ? nil : vocabulary,
+            snippet_cues: cues.isEmpty ? nil : cues,
+            style: group.map { library.styles.style($0).tone.rawValue },
+            options: library.styles.spokenEmoji ? .init(spoken_emoji: true) : nil)
     }
 
-    private func deliver(_ transcript: Transcript) {
-        let outcome = Inserter.insert(transcript.text,
+    private func deliver(_ text: String, failure: CloudError?, undo: (() -> Void)?) {
+        let outcome = Inserter.insert(text,
                                       method: settings.insertMethod,
                                       restoreClipboard: settings.restoreClipboard)
 
         switch outcome {
         case .inserted:
-            if settings.showHUD { hud.show(.message("Pasted", seconds: 1.4)) }
+            guard settings.showHUD else { return }
+            if let failure {
+                hud.show(.fallback(failure.pillReason))
+            } else {
+                hud.show(.pasted(words: TextRules.wordCount(text), undo: undo))
+            }
         case .copiedOnly:
             hud.show(.error("Copied to clipboard — grant Accessibility to insert automatically"))
             // Ask once per launch; prompting after every dictation is just nagging.
@@ -365,6 +403,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .failed(let message):
             hud.show(.error(message))
         }
+    }
+
+    /// Undo on the pill: ⌘Z takes the cleaned text back out, then the raw
+    /// transcript goes in its place.
+    private func undoCleanup(_ rawText: String) {
+        Inserter.postUndo()
+        lastTranscript = rawText
+        refreshStatusItem()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            _ = Inserter.insert(rawText, method: self.settings.insertMethod, restoreClipboard: self.settings.restoreClipboard)
+        }
+    }
+
+    private func countSnippets(_ used: [UUID: Int]) {
+        guard !used.isEmpty else { return }
+        for index in library.snippets.indices {
+            library.snippets[index].used += used[library.snippets[index].id] ?? 0
+        }
+        library.saveSnippets()
+    }
+
+    /// Adds the dictation to history unless history is off. Returns true when
+    /// the recording was moved into the audio folder and must be kept.
+    private func record(_ entry: HistoryEntry, audio: URL) -> Bool {
+        guard settings.historyRetention != .off else { return false }
+        var entry = entry
+        var kept = false
+        if settings.keepAudio {
+            let name = entry.id.uuidString + ".wav"
+            try? FileManager.default.createDirectory(at: library.audioFolder, withIntermediateDirectories: true)
+            if (try? FileManager.default.moveItem(at: audio, to: library.audioFolder.appendingPathComponent(name))) != nil {
+                entry.audioFile = name
+                kept = true
+            }
+        }
+        library.add(entry)
+        library.prune(settings.historyRetention)
+        return kept
     }
 
     // MARK: - Menu bar
@@ -464,6 +541,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         languageItem.submenu = languageMenu
         menu.addItem(languageItem)
 
+        let open = NSMenuItem(title: "Open Foxtation…", action: #selector(menuOpen), keyEquivalent: "o")
+        open.target = self
+        menu.addItem(open)
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -485,13 +565,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func menuStart() { startRecording() }
     @objc private func menuStop() { finishRecording() }
     @objc private func menuCancel() { cancelTranscription() }
-    @objc private func menuSettings() { showSettings() }
+    @objc private func menuOpen() { showMainWindow() }
+    @objc private func menuSettings() { showMainWindow(settings: .general) }
 
     @objc private func menuLanguage(_ sender: NSMenuItem) {
         guard let code = sender.representedObject as? String else { return }
         settings.language = code
         refreshStatusItem()
-        settingsWindow?.reload()
     }
     @objc private func menuGrantAccessibility() { Permissions.requestAccessibility(prompt: true) }
 
@@ -504,23 +584,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuQuit() { NSApp.terminate(nil) }
 
-    // MARK: - Settings window
+    // MARK: - Main window
 
-    func showSettings() {
-        if settingsWindow == nil {
-            settingsWindow = SettingsWindow(settings: settings, onChange: { [weak self] in
-                guard let self else { return }
-                self.registerHotKey()
-                self.applyRightOption()
-                self.wireRecorder()
-                self.hud.placement = self.settings.hudPlacement
-                self.refreshStatusItem()
-                self.applyLaunchAtLogin()
-            })
-        }
-        settingsWindow?.reload()
+    func showMainWindow(settings section: SettingsSection? = nil) {
+        if mainWindow == nil { mainWindow = MainWindow(model: model) }
+        if let section { model.openSettings(section) }
+        model.refreshUsage()
         NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        mainWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Start dictation from the window: step aside so the text goes into
+    /// the app the user was in before.
+    private func startFromWindow() {
+        NSApp.hide(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.startRecording() }
+    }
+
+    private func settingsChanged() {
+        registerHotKey()
+        applyRightOption()
+        wireRecorder()
+        hud.placement = settings.hudPlacement
+        refreshStatusItem()
+        applyLaunchAtLogin()
     }
 
     func applyLaunchAtLogin() {
@@ -541,7 +628,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let enabled = service.status == .enabled
             appliedLaunchAtLogin = enabled
             settings.launchAtLogin = enabled
-            settingsWindow?.reload()
             hud.show(.error("Launch at login failed"))
         }
     }

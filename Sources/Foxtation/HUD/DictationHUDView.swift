@@ -2,14 +2,15 @@ import AppKit
 import SwiftUI
 
 enum HUDState {
-    case hidden, listening, processing, success, error, cancelled
+    /// `fallback`: cleanup failed but the raw transcript was pasted.
+    case hidden, listening, processing, success, fallback, error, cancelled
 
     var foxState: FoxState {
         switch self {
         case .listening: return .listen
         case .processing: return .think
         case .success: return .success
-        case .error: return .error
+        case .fallback, .error: return .error
         case .hidden, .cancelled: return .idle
         }
     }
@@ -20,6 +21,7 @@ enum HUDState {
         case .listening:  return Color(hex: 0x6C7DF2)
         case .processing: return Color(hex: 0xFF9F0A)
         case .success:    return Color(hex: 0x30D158)
+        case .fallback:   return Color(hex: 0xFFB340)
         case .error:      return Color(hex: 0xFF453A)
         case .hidden, .cancelled: return Color.white.opacity(0.2)
         }
@@ -35,14 +37,12 @@ enum HUDState {
 
     var labelColor: Color {
         switch self {
-        case .success: return Color(hex: 0x30D158)
         case .error:   return Color(hex: 0xFF8A80)
         default:       return Color.white
         }
     }
 
     var showsWaveform: Bool { self == .listening || self == .processing }
-    var showsEsc: Bool { self == .listening }
 }
 
 /// Where things sit inside the pill, measured from its leading edge. The entry
@@ -69,6 +69,12 @@ extension Color {
 final class HUDModel: ObservableObject {
     @Published var state: HUDState = .hidden
     @Published var label = ""
+    /// Dimmed text after the label: the app name, "· 24 words", "· raw text pasted".
+    @Published var detail = ""
+    /// Start of the recording, for the listening timer.
+    @Published var startedAt = Date()
+    /// Shows Undo on the pasted state.
+    @Published var canUndo = false
     @Published var placement: HUDPlacement = .rightEdge
 
     @Published var pillOffset: CGSize = .zero
@@ -89,6 +95,8 @@ final class HUDModel: ObservableObject {
     /// Snapshots can't host NSVisualEffectView; draw a flat fill instead.
     var isSnapshot = false
     var onHover: ((Bool) -> Void)?
+    var onCancelTap: (() -> Void)?
+    var onUndoTap: (() -> Void)?
 
     // Entry bookkeeping (see FoxOrbitEntry.swift).
     var entryTask: Task<Void, Never>?
@@ -146,7 +154,7 @@ struct PillView: View {
 
     var body: some View {
         let state = model.state
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             FoxFaceView(fox: model.fox, paused: !model.isVisible)
                 .frame(width: PillMetrics.faceSize, height: PillMetrics.faceSize)
                 .background(GeometryReader { proxy in
@@ -157,39 +165,63 @@ struct PillView: View {
                 .scaleEffect(model.slotScale)
                 .opacity(model.slotOpacity)
 
-            Text(model.label)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(state.labelColor)
+            HStack(spacing: 8) {
+                if state == .success {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, HUDState.success.accent)
+                } else if state == .fallback {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(HUDState.fallback.accent)
+                }
+                HStack(spacing: 4) {
+                    Text(model.label)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundStyle(state.labelColor)
+                    if !model.detail.isEmpty {
+                        Text(model.detail)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.55))
+                    }
+                }
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .opacity(model.contentOpacity)
-
-            ZStack {
-                WaveformView(meter: model.meter, state: state, paused: !model.isVisible)
-                    .frame(width: WaveformView.width, height: WaveformView.maxHeight)
-                    .opacity(state.showsWaveform && model.waveformStarted ? 1 : 0)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, HUDState.success.accent)
-                    .opacity(state == .success ? 1 : 0)
             }
-            .frame(width: WaveformView.width)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .opacity(model.contentOpacity)
 
-            Text("esc")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.5))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.2), lineWidth: 0.5))
-                .opacity(model.contentOpacity * (state.showsEsc ? 1 : 0))
-                .frame(width: state.showsEsc ? nil : 0)
-                .clipped()
+            if state.showsWaveform {
+                WaveformView(meter: model.meter, state: state, paused: !model.isVisible)
+                    .frame(width: WaveformView.width, height: WaveformView.maxHeight)
+                    .opacity(model.waveformStarted ? model.contentOpacity : 0)
+            }
+
+            if state == .listening {
+                TimelineView(.periodic(from: model.startedAt, by: 1)) { context in
+                    let seconds = max(0, Int(context.date.timeIntervalSince(model.startedAt)))
+                    Text(String(format: "%d:%02d", seconds / 60, seconds % 60))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
+                .opacity(model.contentOpacity)
+                PillButton(action: { model.onCancelTap?() }) {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                }
+                .frame(width: 28)
+                .opacity(model.contentOpacity)
+                .accessibilityLabel("Cancel recording")
+            } else if state == .success && model.canUndo {
+                PillButton(action: { model.onUndoTap?() }) {
+                    Text("Undo").font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 12)
+                }
+                .opacity(model.contentOpacity)
+                .accessibilityLabel("Undo cleanup")
+            }
         }
         .padding(.leading, PillMetrics.leadingInset)
-        .padding(.trailing, 16)
+        .padding(.trailing, state == .listening || (state == .success && model.canUndo) ? 12 : 16)
         .frame(width: PillMetrics.width, height: PillMetrics.height)
         .background(background)
         .overlay(
@@ -283,6 +315,23 @@ struct FoxFaceView: View {
             m.dy = CGFloat(-0.6 * sin(2 * .pi * t / 3.4))
         }
         return m
+    }
+}
+
+/// Round dark button inside the pill (× and Undo).
+struct PillButton<Label: View>: View {
+    var action: () -> Void
+    @ViewBuilder var label: () -> Label
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .foregroundStyle(Color.white.opacity(0.9))
+                .frame(minWidth: 28, minHeight: 28)
+                .background(Capsule().fill(Color.white.opacity(0.12)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

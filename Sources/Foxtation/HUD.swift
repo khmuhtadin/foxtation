@@ -8,11 +8,17 @@ final class HUD {
     enum State {
         case listening
         case working
+        /// Foxtation Cloud is cleaning up the text for this app.
+        case cleaning(app: String)
+        /// "Pasted · 24 words", with Undo when the cleanup changed the text.
+        case pasted(words: Int, undo: (() -> Void)?)
+        /// Cleanup failed, the raw transcript was pasted: "Offline · raw text pasted".
+        case fallback(String)
         case message(String, seconds: TimeInterval)
         case error(String)
     }
 
-    /// Called when the user presses esc while the pill is up.
+    /// Called when the user presses esc or × while the pill is up.
     var onCancel: (() -> Void)?
 
     var placement: HUDPlacement = .rightEdge {
@@ -29,8 +35,16 @@ final class HUD {
     private var keyMonitors: [Any] = []
     private var followTimer: Timer?
     private var lastFoxLevel = Date.distantPast
+    private var undo: (() -> Void)?
 
     init() {
+        model.onCancelTap = { [weak self] in self?.escPressed() }
+        model.onUndoTap = { [weak self] in
+            guard let self, let undo = self.undo else { return }
+            self.undo = nil
+            self.hide()
+            undo()
+        }
         model.onHover = { [weak self] hovering in
             if hovering { self?.dismissTimer.pause() } else { self?.dismissTimer.resume() }
         }
@@ -47,14 +61,33 @@ final class HUD {
     func show(_ state: State) {
         let hudState: HUDState
         let label: String
+        var detail = ""
         var autoDismiss: TimeInterval?
+        undo = nil
         switch state {
         case .listening:
             hudState = .listening
-            label = "Listening…"
+            label = "Listening"
+            model.startedAt = Date()
         case .working:
             hudState = .processing
             label = "Transcribing…"
+        case .cleaning(let app):
+            hudState = .processing
+            label = app.isEmpty ? "Cleaning up…" : "Cleaning up for"
+            detail = app
+        case .pasted(let words, let undo):
+            hudState = .success
+            label = "Pasted"
+            detail = "· \(words) \(words == 1 ? "word" : "words")"
+            self.undo = undo
+            autoDismiss = 2
+        case .fallback(let reason):
+            NSLog("Foxtation: cleanup fallback: %@", reason)
+            hudState = .fallback
+            label = reason
+            detail = "· raw text pasted"
+            autoDismiss = 4
         case .message(let text, let seconds):
             hudState = .success
             label = Self.pillText(text)
@@ -76,11 +109,15 @@ final class HUD {
             withAnimation(.easeInOut(duration: 0.18)) {
                 model.state = hudState
                 model.label = label
+                model.detail = detail
+                model.canUndo = undo != nil
             }
         } else {
             model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             model.state = hudState
             model.label = label
+            model.detail = detail
+            model.canUndo = undo != nil
             model.waveformStarted = false
             model.isVisible = true
             model.fox.isPaused = false
@@ -92,7 +129,7 @@ final class HUD {
             announce(label)
         }
 
-        if hudState == .success { announce(label) }
+        if hudState == .success || hudState == .fallback { announce(detail.isEmpty ? label : "\(label) \(detail)") }
         if let autoDismiss {
             dismissTimer.start(autoDismiss) { [weak self] in self?.hide() }
         }

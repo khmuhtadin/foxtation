@@ -91,6 +91,20 @@ if let index = CommandLine.arguments.firstIndex(of: "--render-hud"), index + 1 <
     }
 }
 
+// Hidden: `Foxtation --render-window <dir>` writes main window and pill screenshots and exits.
+if let index = CommandLine.arguments.firstIndex(of: "--render-window"), index + 1 < CommandLine.arguments.count {
+    _ = NSApplication.shared
+    MainActor.assumeIsolated {
+        do {
+            try WindowSnapshots.render(to: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
+            exit(1)
+        }
+    }
+}
+
 if !runHeadlessIfRequested() {
     let app = NSApplication.shared
     let delegate = AppDelegate()

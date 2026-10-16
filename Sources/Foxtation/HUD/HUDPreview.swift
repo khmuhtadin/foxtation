@@ -14,20 +14,25 @@ extension VectorFoxAnimator {
 }
 
 extension HUDModel {
-    static let sampleLabels: [(HUDState, String)] = [
-        (.listening, "Listening…"),
-        (.processing, "Transcribing…"),
-        (.success, "Pasted"),
-        (.error, "No speech detected"),
+    /// The design's pill states plus the plain error.
+    static let sampleLabels: [(HUDState, String, String)] = [
+        (.listening, "Listening", ""),
+        (.processing, "Cleaning up for", "Slack"),
+        (.success, "Pasted", "· 24 words"),
+        (.fallback, "Daily limit reached", "· raw text pasted"),
+        (.error, "No speech detected", ""),
     ]
 
     /// A seated pill in the given state.
-    static func snapshot(_ state: HUDState, label: String, placement: HUDPlacement = .rightEdge) -> HUDModel {
+    static func snapshot(_ state: HUDState, label: String, detail: String = "", placement: HUDPlacement = .rightEdge) -> HUDModel {
         let model = HUDModel()
         model.isSnapshot = true
         model.placement = placement
         model.state = state
         model.label = label
+        model.detail = detail
+        model.canUndo = state == .success
+        model.startedAt = Date().addingTimeInterval(-7)
         model.pillOpacity = 1
         model.contentOpacity = 1
         model.slotOpacity = 1
@@ -41,7 +46,7 @@ extension HUDModel {
 
     /// A frame from the middle of the entry flight, `time` seconds in.
     static func flightFrame(_ time: Double, placement: HUDPlacement) -> (HUDModel, FoxFlight) {
-        let model = snapshot(.listening, label: "Listening…", placement: placement)
+        let model = snapshot(.listening, label: "Listening", placement: placement)
         model.contentOpacity = FoxFlight.ramp(time, FoxFlight.landingReal + 0.06, FoxFlight.landingReal + 0.28)
         model.slotOpacity = FoxFlight.ramp(time, FoxFlight.landingReal, FoxFlight.landingReal + 0.15)
         let flight = FoxFlight()
@@ -89,13 +94,13 @@ struct HUDPlacementMock: View {
 struct HUDPreview_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            ForEach(HUDModel.sampleLabels, id: \.1) { state, label in
-                HUDStage(model: .snapshot(state, label: label), flight: FoxFlight())
+            ForEach(HUDModel.sampleLabels, id: \.1) { state, label, detail in
+                HUDStage(model: .snapshot(state, label: label, detail: detail), flight: FoxFlight())
                     .background(Color(white: 0.4))
                     .previewDisplayName("State: \(label)")
             }
             ForEach(HUDPlacement.allCases, id: \.self) { placement in
-                HUDPlacementMock(placement: placement, model: .snapshot(.listening, label: "Listening…", placement: placement))
+                HUDPlacementMock(placement: placement, model: .snapshot(.listening, label: "Listening", placement: placement))
                     .scaleEffect(0.5)
                     .previewDisplayName("Placement: \(placement.label)")
             }
@@ -126,8 +131,8 @@ enum HUDSnapshots {
                                        startPoint: .top, endPoint: .bottom)
 
         // Every visible state, seated. `hidden` and `cancelled` draw nothing.
-        for (state, label) in HUDModel.sampleLabels {
-            let model = HUDModel.snapshot(state, label: label)
+        for (state, label, detail) in HUDModel.sampleLabels {
+            let model = HUDModel.snapshot(state, label: label, detail: detail)
             try write(HUDStage(model: model, flight: FoxFlight()).background(wallpaper), "state-\(state)")
             try write(HUDStage(model: model, flight: FoxFlight()).background(Color(white: 0.93)), "state-\(state)-light")
             if state == .listening, let slot = model.measuredSlotCenter {
@@ -150,10 +155,10 @@ enum HUDSnapshots {
 
         // Where each placement lands on a notched screen.
         for placement in HUDPlacement.allCases {
-            let model = HUDModel.snapshot(.listening, label: "Listening…", placement: placement)
+            let model = HUDModel.snapshot(.listening, label: "Listening", placement: placement)
             try write(HUDPlacementMock(placement: placement, model: model), "placement-\(placement)", scale: 1)
         }
-        let hidden = HUDModel.snapshot(.listening, label: "Listening…", placement: .topCenter)
+        let hidden = HUDModel.snapshot(.listening, label: "Listening", placement: .topCenter)
         try write(HUDPlacementMock(placement: .topCenter, menuBarHidden: true, model: hidden),
                   "placement-topCenter-menubar-autohide", scale: 1)
     }
