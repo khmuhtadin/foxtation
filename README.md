@@ -21,7 +21,9 @@
 - **Hands-free** — double-tap right <kbd>⌥</kbd> to keep listening, tap again to stop.
 - **On-device Whisper** — `whisper-large-v3-turbo` on the Apple GPU via MLX, or whisper.cpp.
 - **Many languages** — Indonesian, English, auto-detect and more, switchable straight from the menu bar.
-- **Stays out of the way** — a small pill at the top of the screen, never steals focus, your clipboard is restored after pasting.
+- **Stays out of the way** — a small pill at the edge of the screen, never steals focus, your clipboard is restored after pasting.
+- **Your words, your way** — a personal dictionary (names, product terms, `btw → by the way` replacements per app), snippets you drop in by saying a cue, and a cleanup style per kind of app.
+- **See your progress** — Home shows today's dictations; Insights shows speaking speed, time saved, fixes, apps and your streak. History stays on your Mac.
 
 ## Install
 
@@ -79,15 +81,17 @@ MLX keeps the model loaded in a background worker, so its load time is paid once
 
 ## Foxtation Cloud
 
-Optional, paid. **Settings › Cloud › AI cleanup** turns the raw transcript into what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, tone matched to the app you're typing in. Mixed Indonesian and English stays mixed.
+Optional, paid. With **Cloud cleanup** on, the raw transcript becomes what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, your dictionary spelled right, and the tone you picked in **Style** for that app. Mixed Indonesian and English stays mixed.
 
-Get a license key from the [Foxtation store](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C), paste it into **Settings › Cloud** and press **Activate**.
+Get a license key from the [Foxtation store](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C), open **Settings › License**, paste it and press **Activate**. Each key works on up to 3 Macs and includes 500 cleanups a day. If cleanup can't run (daily limit, offline, license), dictation still pastes the raw transcript.
 
 ## Privacy
 
 Audio is recorded to a temporary file, transcribed locally and deleted. Model weights are downloaded once from Hugging Face; after that Foxtation works offline.
 
-With Foxtation Cloud switched on, the transcribed text (never audio) and the name of the app you're dictating into are sent to the Foxtation server for cleanup. With it off, nothing is sent anywhere.
+With Foxtation Cloud switched on, the transcribed text (never audio), your dictionary words and snippet cues, and — unless you turn off **Share the app name** — the name of the app you're dictating into are sent to the Foxtation server for cleanup. Nothing is stored there except a daily counter. With cleanup off, nothing is sent anywhere.
+
+History (and, if you choose, audio recordings) is kept only on your Mac, in `~/Library/Application Support/Foxtation/`, for as long as **Settings › Data & Privacy** says. You can export or delete it there.
 
 ## Command line
 
