@@ -1,0 +1,32 @@
+import SwiftUI
+
+struct CloudSettings: View {
+    @ObservedObject var model: AppModel
+    @Binding var section: SettingsSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RowsCard {
+                SettingRow(title: "AI cleanup",
+                           detail: "Foxtation Cloud removes filler words, applies your self-corrections and fixes punctuation before pasting. Off: the raw on-device transcript is pasted.") {
+                    FXSwitch(isOn: model.setting(\.cloudCleanup))
+                }
+                RowDivider()
+                if model.cloud.isActivated {
+                    SettingRow(title: "Foxtation Cloud", detail: "Activated on this Mac.") {
+                        StatusBadge(text: "Active", good: true)
+                    }
+                } else {
+                    SettingRow(title: "Foxtation Cloud", detail: "Not activated — open License to add your key.") {
+                        Button("Open License") { section = .license }.fxButton(.secondary, compact: true)
+                    }
+                }
+                RowDivider()
+                SettingRow(title: "Share the app name", detail: "Sends “Slack” or “Mail” so cleanup can match the style.") {
+                    FXSwitch(isOn: model.setting(\.shareAppName))
+                }
+            }
+            SettingsNote(text: "Only the text transcript is sent for cleanup, never audio, and it isn’t stored after the reply.")
+        }
+    }
+}

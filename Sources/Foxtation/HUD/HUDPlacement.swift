@@ -17,7 +17,7 @@ enum HUDPlacement: String, CaseIterable {
 
 /// Fixed geometry shared by the window, the pill view and the fox flight.
 enum HUDMetrics {
-    static let pillSize = CGSize(width: 320, height: 52)
+    static let pillSize = CGSize(width: 380, height: 52)
     /// Room around the pill for the fox's flight, taken from the path's own bounds.
     static let margins = FoxFlight.margins
     static let windowSize = CGSize(width: margins.left + pillSize.width + margins.right,

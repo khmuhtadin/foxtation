@@ -41,17 +41,26 @@ enum Inserter {
         return .inserted
     }
 
+    /// ⌘Z in the focused app.
+    static func undo() {
+        guard Permissions.accessibilityGranted else { return }
+        postCommand(CGKeyCode(kVK_ANSI_Z))
+    }
+
     // MARK: - Synthetic input
 
     private static func postCommandV() {
+        postCommand(CGKeyCode(kVK_ANSI_V))
+    }
+
+    private static func postCommand(_ key: CGKeyCode) {
         let source = CGEventSource(stateID: .combinedSessionState)
         source?.setLocalEventsFilterDuringSuppressionState(
             [.permitLocalMouseEvents, .permitLocalKeyboardEvents],
             state: .eventSuppressionStateSuppressionInterval)
 
-        let vKey = CGKeyCode(kVK_ANSI_V)
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false) else { return }
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) else { return }
         down.flags = .maskCommand
         up.flags = .maskCommand
         down.post(tap: .cgAnnotatedSessionEventTap)

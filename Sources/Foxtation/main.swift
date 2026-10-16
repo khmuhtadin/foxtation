@@ -7,7 +7,7 @@ func runHeadlessIfRequested() -> Bool {
     let arguments = CommandLine.arguments
     guard let flagIndex = arguments.firstIndex(of: "--transcribe") else { return false }
     guard flagIndex + 1 < arguments.count else {
-        FileHandle.standardError.write(Data("usage: Foxtation --transcribe file.wav [--engine mlx|cpp] [--model M] [--language L] [--translate] [--prompt P]\n".utf8))
+        FileHandle.standardError.write(Data("usage: Foxtation --transcribe file.wav [--engine mlx|cpp] [--model M] [--language L] [--translate] [--prompt P] [--cleanup [--app BUNDLE_ID] [--sample-library]]\n".utf8))
         exit(2)
     }
     let audio = URL(fileURLWithPath: arguments[flagIndex + 1])
@@ -56,7 +56,13 @@ func runHeadlessIfRequested() -> Bool {
                 transcript = try await Transcriber.transcribe(audio: audio, settings: settings)
             }
             let wall = Date().timeIntervalSince(started)
-            print(transcript.text)
+            if arguments.contains("--cleanup") {
+                try await printCleanup(of: transcript, settings: settings,
+                                       bundleID: value(for: "--app") ?? "",
+                                       library: arguments.contains("--sample-library") ? .sample() : .shared)
+            } else {
+                print(transcript.text)
+            }
             FileHandle.standardError.write(Data(String(
                 format: "engine=%@ language=%@ wall=%.2fs\n",
                 settings.engine == .mlx ? settings.mlxModel : "whisper.cpp",
@@ -74,6 +80,30 @@ func runHeadlessIfRequested() -> Bool {
     exit(exitCode)
 }
 
+/// `--cleanup`: runs the same pipeline as a real dictation into `bundleID`,
+/// cloud cleanup included, and prints every stage instead of pasting.
+func printCleanup(of raw: Transcript, settings: Settings, bundleID: String, library: Library) async throws {
+    let name = library.groups.values.flatMap(\.apps).first { $0.bundleID == bundleID }?.name ?? bundleID
+    let target = DictationTarget(name: name, bundleID: bundleID)
+    let request = DictationPipeline.request(for: raw, target: target, settings: settings, library: library)
+    let cleaned = await DictationPipeline.cleanUp(raw, request: request,
+                                                  licenseKey: settings.licenseKey, activationID: settings.activationID)
+    print("raw:     \(raw.text)")
+    print("style:   \(request?.style?.rawValue ?? "-") (app: \(request?.app ?? "-"))")
+    if let fallback = cleaned.fallback {
+        print("cloud:   FALLBACK \(fallback)")
+    } else if cleaned.cloud {
+        print("cloud:   \(cleaned.text)")
+    } else {
+        print("cloud:   off (cleanup disabled or not activated)")
+    }
+    print("final:   \(DictationPipeline.finish(cleaned.text, target: target, library: library))")
+    if let changes = cleaned.changes {
+        print("changes: fillers \(changes.fillersRemoved), self-corrections \(changes.selfCorrections), formatting \(changes.formattingFixes)")
+    }
+    if let usage = cleaned.usage { print("usage:   \(usage.used)/\(usage.limit)") }
+}
+
 // Writing to a dead worker's stdin must surface as an error, not kill the app.
 signal(SIGPIPE, SIG_IGN)
 
@@ -88,6 +118,31 @@ if let index = CommandLine.arguments.firstIndex(of: "--render-hud"), index + 1 <
             FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
             exit(1)
         }
+    }
+}
+
+// Hidden: `Foxtation --render-window <dir> [filter]` writes main window screenshots and exits.
+if let index = CommandLine.arguments.firstIndex(of: "--render-window"), index + 1 < CommandLine.arguments.count {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let filter = index + 2 < CommandLine.arguments.count ? CommandLine.arguments[index + 2] : nil
+    MainActor.assumeIsolated {
+        do {
+            try WindowSnapshots.render(to: URL(fileURLWithPath: CommandLine.arguments[index + 1]), filter: filter)
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
+            exit(1)
+        }
+    }
+}
+
+// Hidden: `Foxtation --ui-test [--dump]` clicks through the window with throwaway data and exits.
+if CommandLine.arguments.contains("--ui-test") {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    MainActor.assumeIsolated {
+        exit(UITest.run(dump: CommandLine.arguments.contains("--dump")))
     }
 }
 

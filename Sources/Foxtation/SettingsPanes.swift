@@ -1,182 +1,15 @@
 import AppKit
+
+// AppKit panes the Settings panel hosts: engine and model setup, advanced
+// options, and the shortcut recorder.
 import Carbon.HIToolbox
 import ServiceManagement
 import UniformTypeIdentifiers
-
-/// AppKit settings UI. Written without SwiftUI on purpose: the machine only has
-/// the Command Line Tools, which do not ship the SwiftUI macro plugin.
-final class SettingsWindow: NSWindow {
-
-    private let content: SettingsContent
-
-    init(settings: Settings, onChange: @escaping () -> Void) {
-        content = SettingsContent(settings: settings, onChange: onChange)
-        super.init(contentRect: NSRect(x: 0, y: 0, width: Layout.windowWidth, height: 400),
-                   styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
-                   backing: .buffered,
-                   defer: false)
-        title = "Foxtation"
-        titleVisibility = .hidden
-        titlebarAppearsTransparent = true
-        isMovableByWindowBackground = true
-        isReleasedWhenClosed = false
-        contentView = content
-        content.fitWindow(animated: false)
-        center()
-    }
-
-    func reload() {
-        content.reload()
-    }
-
-    override func becomeKey() {
-        super.becomeKey()
-        content.reload()
-    }
-}
-
-// MARK: - Palette
-
-/// Colors from the app icon: ice-blue tile, white fox, indigo waveform, navy ink.
-enum Palette {
-    static let background = dynamic(light: 0xDCE7F8, dark: 0x151A33)
-    static let card = dynamic(light: 0xFFFFFF, dark: 0x1F2647)
-    static let ink = dynamic(light: 0x1E2140, dark: 0xEEF1FF)
-    static let secondary = dynamic(light: 0x5E6689, dark: 0x9AA3C9)
-    static let separator = dynamic(light: 0xE6ECF7, dark: 0x2B3460)
-    static let accent = dynamic(light: 0x5B6FE0, dark: 0x8696FF)
-    static let track = dynamic(light: 0xC9D6EC, dark: 0x39426E)
-    static let good = dynamic(light: 0x2E9E62, dark: 0x5FD394)
-    static let bad = dynamic(light: 0xD8456B, dark: 0xF6A3BC)  // the inner-ear pink, deepened for contrast
-
-    private static func dynamic(light: UInt32, dark: UInt32) -> NSColor {
-        NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            return rgb(isDark ? dark : light)
-        }
-    }
-
-    private static func rgb(_ hex: UInt32) -> NSColor {
-        NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
-                green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255,
-                alpha: 1)
-    }
-}
 
 private enum Layout {
     static let windowWidth: CGFloat = 560
     static let margin: CGFloat = 20
     static let cardWidth: CGFloat = windowWidth - margin * 2
-}
-
-// MARK: - Root
-
-final class SettingsContent: FillView {
-
-    private let panes: [Pane]
-    private let tabs = NSSegmentedControl()
-    private let holder = NSView()
-    private var current: Pane?
-
-    init(settings: Settings, onChange: @escaping () -> Void) {
-        panes = [
-            GeneralPane(settings: settings, onChange: onChange),
-            EnginePane(settings: settings, onChange: onChange),
-            CloudPane(settings: settings),
-            AdvancedPane(settings: settings, onChange: onChange),
-        ]
-        super.init(color: Palette.background)
-
-        let icon = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        icon.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        icon.heightAnchor.constraint(equalToConstant: 40).isActive = true
-
-        let name = label("Foxtation", size: 15, weight: .semibold)
-        let tagline = label("Local dictation for your Mac", size: 11, color: Palette.secondary)
-        let titles = NSStackView(views: [name, tagline])
-        titles.orientation = .vertical
-        titles.alignment = .leading
-        titles.spacing = 1
-
-        tabs.segmentStyle = .rounded
-        tabs.trackingMode = .selectOne
-        tabs.segmentCount = 4
-        for (index, title) in ["General", "Engine", "Cloud", "Advanced"].enumerated() {
-            tabs.setLabel(title, forSegment: index)
-            tabs.setWidth(70, forSegment: index)
-        }
-        tabs.selectedSegmentBezelColor = Palette.accent
-        tabs.selectedSegment = 0
-        tabs.target = self
-        tabs.action = #selector(tabChanged)
-
-        let header = NSStackView(views: [icon, titles, NSView(), tabs])
-        header.orientation = .horizontal
-        header.alignment = .centerY
-        header.spacing = 10
-
-        holder.translatesAutoresizingMaskIntoConstraints = false
-        let column = NSStackView(views: [header, holder])
-        column.orientation = .vertical
-        column.alignment = .leading
-        column.spacing = 16
-        column.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(column)
-        NSLayoutConstraint.activate([
-            column.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.margin),
-            column.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.margin),
-            column.topAnchor.constraint(equalTo: topAnchor, constant: 34),  // below the traffic lights
-            column.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Layout.margin),
-            header.widthAnchor.constraint(equalToConstant: Layout.cardWidth),
-            holder.widthAnchor.constraint(equalToConstant: Layout.cardWidth),
-            widthAnchor.constraint(equalToConstant: Layout.windowWidth),
-        ])
-
-        for pane in panes {
-            pane.onResize = { [weak self] in self?.fitWindow(animated: true) }
-        }
-        show(0)
-    }
-
-    required init?(coder: NSCoder) { fatalError("not supported") }
-
-    func reload() {
-        panes.forEach { $0.reload() }
-    }
-
-    func show(_ index: Int) {
-        current?.removeFromSuperview()
-        let pane = panes[index]
-        pane.translatesAutoresizingMaskIntoConstraints = false
-        holder.addSubview(pane)
-        NSLayoutConstraint.activate([
-            pane.leadingAnchor.constraint(equalTo: holder.leadingAnchor),
-            pane.trailingAnchor.constraint(equalTo: holder.trailingAnchor),
-            pane.topAnchor.constraint(equalTo: holder.topAnchor),
-            pane.bottomAnchor.constraint(equalTo: holder.bottomAnchor),
-        ])
-        current = pane
-        tabs.selectedSegment = index
-        pane.reload()
-    }
-
-    /// The window is exactly as tall as the visible pane, keeping its top edge put.
-    func fitWindow(animated: Bool) {
-        layoutSubtreeIfNeeded()
-        guard let window else { return }
-        let height = fittingSize.height
-        var frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: Layout.windowWidth, height: height))
-        frame.origin.x = window.frame.minX
-        frame.origin.y = window.frame.maxY - frame.height
-        window.setFrame(frame, display: true, animate: animated && window.isVisible)
-    }
-
-    @objc private func tabChanged() {
-        show(tabs.selectedSegment)
-        fitWindow(animated: true)
-    }
 }
 
 // MARK: - Building blocks
@@ -185,9 +18,12 @@ final class SettingsContent: FillView {
 class FillView: NSView {
 
     var color: NSColor { didSet { needsDisplay = true } }
+    /// Optional hairline around the view.
+    var border: NSColor? { didSet { needsDisplay = true } }
 
-    init(color: NSColor, radius: CGFloat = 0) {
+    init(color: NSColor, radius: CGFloat = 0, border: NSColor? = nil) {
         self.color = color
+        self.border = border
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = radius
@@ -199,6 +35,8 @@ class FillView: NSView {
 
     override func updateLayer() {
         layer?.backgroundColor = color.cgColor  // re-resolved on every appearance change
+        layer?.borderColor = border?.cgColor
+        layer?.borderWidth = border == nil ? 0 : 1
     }
 }
 
@@ -284,7 +122,7 @@ private final class Row: NSStackView {
 }
 
 /// A titled white card holding rows separated by hairlines.
-private func card(_ title: String?, _ rows: [NSView]) -> NSStackView {
+private func card(_ title: String?, _ rows: [NSView], width: CGFloat = Layout.cardWidth) -> NSStackView {
     let body = NSStackView()
     body.orientation = .vertical
     body.alignment = .leading
@@ -302,7 +140,7 @@ private func card(_ title: String?, _ rows: [NSView]) -> NSStackView {
         row.widthAnchor.constraint(equalTo: body.widthAnchor).isActive = true
     }
 
-    let background = FillView(color: Palette.card, radius: 12)
+    let background = FillView(color: Palette.card, radius: 10, border: Palette.separator)
     body.translatesAutoresizingMaskIntoConstraints = false
     background.addSubview(body)
     NSLayoutConstraint.activate([
@@ -322,12 +160,13 @@ private func card(_ title: String?, _ rows: [NSView]) -> NSStackView {
         group.setCustomSpacing(6, after: heading)
     }
     group.addArrangedSubview(background)
-    background.widthAnchor.constraint(equalToConstant: Layout.cardWidth).isActive = true
+    background.widthAnchor.constraint(equalToConstant: width).isActive = true
     return group
 }
 
 /// A pane is a column of cards; AppDelegate-facing state lives in the subclasses.
-private class Pane: NSStackView {
+/// The Engine and Advanced panes are also shown in the main window's Settings panel.
+class Pane: NSStackView {
 
     /// Asks the window to re-fit after rows were shown or hidden.
     var onResize: (() -> Void)?
@@ -344,188 +183,14 @@ private class Pane: NSStackView {
     func reload() {}
 }
 
-private func popup(_ titles: [String], target: AnyObject, action: Selector) -> NSPopUpButton {
-    let button = NSPopUpButton()
-    button.addItems(withTitles: titles)
-    button.target = target
-    button.action = action
-    return button
-}
-
-// MARK: - General
-
-private final class GeneralPane: Pane {
-
-    private let settings: Settings
-    private let onChange: () -> Void
-    private var loading = false
-
-    private let rightOption = Toggle()
-    private let recorder = RecorderButton()
-    private var modePopup: NSPopUpButton!
-    private var languagePopup: NSPopUpButton!
-    private let translate = Toggle()
-    private var methodPopup: NSPopUpButton!
-    private let restoreClipboard = Toggle()
-    private let showHUD = Toggle()
-    private var placementPopup: NSPopUpButton!
-    private let sounds = Toggle()
-    private let launchAtLogin = Toggle()
-    private let microphone = PermissionRow(title: "Microphone", detail: "Records your voice")
-    private let accessibility = PermissionRow(title: "Accessibility", detail: "Pastes text into other apps")
-    private var timer: Timer?
-
-    init(settings: Settings, onChange: @escaping () -> Void) {
-        self.settings = settings
-        self.onChange = onChange
-        super.init()
-
-        modePopup = popup(["Press to start, again to stop", "Hold while speaking"],
-                          target: self, action: #selector(modeChanged))
-        languagePopup = popup(Settings.languages.map(\.label), target: self, action: #selector(languageChanged))
-        methodPopup = popup(["Paste (⌘V)", "Type characters"], target: self, action: #selector(methodChanged))
-        placementPopup = popup(HUDPlacement.allCases.map(\.label), target: self, action: #selector(placementChanged))
-
-        recorder.translatesAutoresizingMaskIntoConstraints = false
-        recorder.widthAnchor.constraint(equalToConstant: 120).isActive = true
-        recorder.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        recorder.onCapture = { [weak self] code, mods in
-            guard let self else { return }
-            self.settings.hotKeyCode = code
-            self.settings.hotKeyModifiers = mods
-            self.reload()
-            self.onChange()
-        }
-
-        rightOption.onToggle = { [weak self] on in self?.settings.holdRightOption = on; self?.onChange() }
-        translate.onToggle = { [weak self] on in self?.settings.translate = on; self?.onChange() }
-        restoreClipboard.onToggle = { [weak self] on in self?.settings.restoreClipboard = on }
-        showHUD.onToggle = { [weak self] on in self?.settings.showHUD = on }
-        sounds.onToggle = { [weak self] on in self?.settings.playSounds = on }
-        launchAtLogin.onToggle = { [weak self] on in self?.settings.launchAtLogin = on; self?.onChange() }
-
-        addArrangedSubview(card("Dictation", [
-            Row("Hold right ⌥ to talk", detail: "Double-tap it for hands-free", [rightOption]),
-            Row("Shortcut", detail: "Must include ⌘, ⌥ or ⌃ — Esc cancels", [recorder]),
-            Row("Shortcut mode", [modePopup]),
-            Row("Language", [languagePopup]),
-            Row("Translate to English", [translate]),
-        ]))
-        addArrangedSubview(card("Output", [
-            Row("Insert by", [methodPopup]),
-            Row("Restore clipboard afterwards", [restoreClipboard]),
-            Row("Floating indicator", [placementPopup, showHUD]),
-            Row("Start and stop sounds", [sounds]),
-            Row("Launch at login", [launchAtLogin]),
-        ]))
-        addArrangedSubview(card("Permissions", [microphone, accessibility]))
-
-        microphone.onGrant = {
-            Permissions.requestMicrophone { granted in
-                if !granted { Permissions.openMicrophoneSettings() }
-            }
-        }
-        accessibility.onGrant = {
-            Permissions.requestAccessibility(prompt: true)
-            Permissions.openAccessibilitySettings()
-        }
-        // Grants happen in System Settings; poll so the status flips without a reopen.
-        timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            self?.refreshPermissions()
-        }
-    }
-
-    required init?(coder: NSCoder) { fatalError("not supported") }
-
-    deinit { timer?.invalidate() }
-
-    override func reload() {
-        loading = true
-        rightOption.isOn = settings.holdRightOption
-        recorder.update(keyCode: settings.hotKeyCode, modifiers: settings.hotKeyModifiers)
-        modePopup.selectItem(at: TriggerMode.allCases.firstIndex(of: settings.triggerMode) ?? 0)
-        languagePopup.selectItem(at: Settings.languages.firstIndex { $0.code == settings.language } ?? 0)
-        translate.isOn = settings.translate
-        methodPopup.selectItem(at: InsertMethod.allCases.firstIndex(of: settings.insertMethod) ?? 0)
-        restoreClipboard.isOn = settings.restoreClipboard
-        showHUD.isOn = settings.showHUD
-        placementPopup.selectItem(at: HUDPlacement.allCases.firstIndex(of: settings.hudPlacement) ?? 0)
-        sounds.isOn = settings.playSounds
-        launchAtLogin.isOn = settings.launchAtLogin
-        refreshPermissions()
-        loading = false
-    }
-
-    private func refreshPermissions() {
-        microphone.update(granted: Permissions.microphoneGranted)
-        accessibility.update(granted: Permissions.accessibilityGranted)
-    }
-
-    @objc private func modeChanged() {
-        guard !loading else { return }
-        settings.triggerMode = TriggerMode.allCases[modePopup.indexOfSelectedItem]
-        onChange()
-    }
-
-    @objc private func languageChanged() {
-        guard !loading else { return }
-        settings.language = Settings.languages[languagePopup.indexOfSelectedItem].code
-        onChange()
-    }
-
-    @objc private func methodChanged() {
-        guard !loading else { return }
-        settings.insertMethod = InsertMethod.allCases[methodPopup.indexOfSelectedItem]
-        onChange()
-    }
-
-    @objc private func placementChanged() {
-        guard !loading else { return }
-        settings.hudPlacement = HUDPlacement.allCases[placementPopup.indexOfSelectedItem]
-        onChange()
-    }
-}
-
-/// Permission line: status on the right, plus a Grant button while missing.
-private final class PermissionRow: NSView {
-
-    var onGrant: (() -> Void)?
-
-    private let status = label("", size: 12, weight: .medium)
-    private lazy var grant = accentButton("Grant…", target: self, action: #selector(grantPressed))
-
-    init(title: String, detail: String) {
-        super.init(frame: .zero)
-        grant.controlSize = .small
-        let row = Row(title, detail: detail, [status, grant])
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor),
-            row.topAnchor.constraint(equalTo: topAnchor),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError("not supported") }
-
-    func update(granted: Bool) {
-        status.stringValue = granted ? "● Granted" : "● Not granted"
-        status.textColor = granted ? Palette.good : Palette.bad
-        grant.isHidden = granted
-    }
-
-    @objc private func grantPressed() { onGrant?() }
-}
-
 // MARK: - Engine
 
-private final class EnginePane: Pane {
+final class EnginePane: Pane {
 
     private let settings: Settings
     private let onChange: () -> Void
     private let runtime = MLXRuntime.shared
+    private let width: CGFloat
 
     private let engineControl = NSSegmentedControl()
     private var mlxCard: NSView!
@@ -537,9 +202,10 @@ private final class EnginePane: Pane {
     private let keepLoaded = Toggle()
     private var loading = false
 
-    init(settings: Settings, onChange: @escaping () -> Void) {
+    init(settings: Settings, onChange: @escaping () -> Void, width: CGFloat) {
         self.settings = settings
         self.onChange = onChange
+        self.width = width
         super.init()
 
         engineControl.segmentStyle = .rounded
@@ -550,7 +216,7 @@ private final class EnginePane: Pane {
         engineControl.selectedSegmentBezelColor = Palette.accent
         engineControl.target = self
         engineControl.action = #selector(engineChanged)
-        addArrangedSubview(card(nil, [Row("Engine", detail: "MLX is fastest on Apple silicon", [engineControl])]))
+        addArrangedSubview(card(nil, [Row("Engine", detail: "MLX is fastest on Apple silicon", [engineControl])], width: width))
 
         setupButton.controlSize = .small
         let update: () -> Void = { [weak self] in
@@ -565,12 +231,12 @@ private final class EnginePane: Pane {
             self.onChange()
         }
         mlxCard = card("MLX models", [Row("Python runtime", [runtimeStatus, setupButton])] + mlxRows
-            + [Row("Keep model in memory", detail: "Instant start, uses about 1.6 GB", [keepLoaded])])
+            + [Row("Keep model in memory", detail: "Instant start, uses about 1.6 GB", [keepLoaded])], width: width)
         addArrangedSubview(mlxCard)
 
         cppRows = ModelStore.catalog.map { CppModelRowView(descriptor: $0, settings: settings, store: ModelStore.shared, onUpdate: update) }
         cppCard = card("whisper.cpp models", cppRows
-            + [Row("Needs whisper-cli", detail: "brew install whisper-cpp", [])])
+            + [Row("Needs whisper-cli", detail: "brew install whisper-cpp", [])], width: width)
         addArrangedSubview(cppCard)
 
         runtime.onChange = { [weak self] in self?.reload() }
@@ -789,82 +455,9 @@ private final class CppModelRowView: NSView {
     }
 }
 
-// MARK: - Cloud
-
-private final class CloudPane: Pane {
-
-    private let settings: Settings
-    private let cleanup = Toggle()
-    private let keyField = NSTextField()
-    private let status = label("", size: 12, weight: .medium)
-    private lazy var activate = accentButton("Activate", target: self, action: #selector(activatePressed))
-
-    init(settings: Settings) {
-        self.settings = settings
-        super.init()
-
-        cleanup.onToggle = { [weak self] on in self?.settings.cloudCleanup = on }
-
-        keyField.placeholderString = "License key"
-        keyField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        keyField.translatesAutoresizingMaskIntoConstraints = false
-        keyField.widthAnchor.constraint(equalToConstant: 220).isActive = true
-        activate.controlSize = .small
-
-        let buy = NSButton(title: "Get a license…", target: self, action: #selector(buyPressed))
-        buy.controlSize = .small
-        buy.bezelStyle = .rounded
-
-        addArrangedSubview(card("Foxtation Cloud", [
-            Row("AI cleanup", detail: "Removes filler words, applies self-corrections, fixes punctuation", [cleanup]),
-            Row("License", detail: "From your Foxtation purchase", [keyField, activate]),
-            Row("Status", [status, buy]),
-        ]))
-        addArrangedSubview(label("Only the transcribed text is sent to the Foxtation server, never audio.",
-                                 size: 11, color: Palette.secondary))
-    }
-
-    required init?(coder: NSCoder) { fatalError("not supported") }
-
-    override func reload() {
-        cleanup.isOn = settings.cloudCleanup
-        if keyField.currentEditor() == nil { keyField.stringValue = settings.licenseKey }
-        showStatus(settings.activationID.isEmpty ? "● Not activated" : "● Active", good: !settings.activationID.isEmpty)
-    }
-
-    private func showStatus(_ text: String, good: Bool) {
-        status.stringValue = text
-        status.textColor = good ? Palette.good : Palette.bad
-    }
-
-    @objc private func activatePressed() {
-        let key = keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return }
-        showStatus("Checking…", good: true)
-        activate.isEnabled = false
-        Task { @MainActor in
-            defer { activate.isEnabled = true }
-            do {
-                let activationID = try await CloudCleanup.activate(key)
-                settings.licenseKey = key
-                settings.activationID = activationID
-                settings.cloudCleanup = true
-                cleanup.isOn = true
-                showStatus("● Active", good: true)
-            } catch {
-                showStatus("● \(error.localizedDescription)", good: false)
-            }
-        }
-    }
-
-    @objc private func buyPressed() {
-        NSWorkspace.shared.open(CloudCleanup.buyURL)
-    }
-}
-
 // MARK: - Advanced
 
-private final class AdvancedPane: Pane {
+final class AdvancedPane: Pane {
 
     private let settings: Settings
     private let onChange: () -> Void
@@ -875,10 +468,12 @@ private final class AdvancedPane: Pane {
     private let prompt = NSTextView()
     private let binaryValue = label("", size: 12)
     private var loading = false
+    private let width: CGFloat
 
-    init(settings: Settings, onChange: @escaping () -> Void) {
+    init(settings: Settings, onChange: @escaping () -> Void, width: CGFloat) {
         self.settings = settings
         self.onChange = onChange
+        self.width = width
         super.init()
 
         threadsStepper.minValue = 1
@@ -913,7 +508,7 @@ private final class AdvancedPane: Pane {
         field.addSubview(scroll)
         field.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            field.widthAnchor.constraint(equalToConstant: Layout.cardWidth - 28),
+            field.widthAnchor.constraint(equalToConstant: width - 28),
             field.heightAnchor.constraint(equalToConstant: 52),
             scroll.leadingAnchor.constraint(equalTo: field.leadingAnchor, constant: 8),
             scroll.trailingAnchor.constraint(equalTo: field.trailingAnchor, constant: -4),
@@ -943,10 +538,10 @@ private final class AdvancedPane: Pane {
             Row("Max recording length", detail: "Recording stops automatically", [maxValue, maxSlider]),
             Row("CPU threads", detail: "whisper.cpp only", [threadsValue, threadsStepper]),
             Row("whisper-cli binary", detail: "brew install whisper-cpp", [binaryValue, choose]),
-        ]))
+        ], width: width))
         addArrangedSubview(card(nil, [
             Row("Reset all settings", detail: "Models and the MLX runtime are kept", [reset]),
-        ]))
+        ], width: width))
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
