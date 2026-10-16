@@ -21,7 +21,7 @@
 - **Hands-free** — double-tap right <kbd>⌥</kbd> to keep listening, tap again to stop.
 - **On-device Whisper** — `whisper-large-v3-turbo` on the Apple GPU via MLX, or whisper.cpp.
 - **Many languages** — Indonesian, English, auto-detect and more, switchable straight from the menu bar.
-- **Stays out of the way** — a small pill at the edge of the screen, never steals focus, your clipboard is restored after pasting.
+- **Stays out of the way** — a small pill at the bottom center of the screen, never steals focus, your clipboard is restored after pasting.
 - **Your words, your way** — a personal dictionary (names, product terms, `btw → by the way` replacements per app), snippets you drop in by saying a cue, and a cleanup style per kind of app.
 - **See your progress** — Home shows today's dictations; Insights shows speaking speed, time saved, fixes, apps and your streak. History stays on your Mac.
 
@@ -125,10 +125,10 @@ open dist/Foxtation.app
 
 ```
 Sources/Foxtation/      Swift app: menu bar, recorder, engines, settings
-  HUD/                  the dictation pill and the fox's entry flight
+  HUD/                  the dictation pill
 Resources/              Info.plist, MLX worker, icons, fox poses
 assets/                 icon and mascot sources plus the scripts that process them
-docs/                   storyboard, screenshots, release notes
+docs/                   design boards, screenshots, release notes
 packaging/homebrew/     Homebrew cask
 scripts/                release tooling
 ```

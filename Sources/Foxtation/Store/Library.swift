@@ -191,9 +191,7 @@ final class Library: ObservableObject {
     func applyReplacements(_ text: String, group: StyleGroup?) -> String {
         var result = text
         for replacement in replacements where replacement.scope == nil || replacement.scope == group {
-            let from = replacement.from.trimmingCharacters(in: .whitespaces)
-            guard !from.isEmpty else { continue }
-            result = Self.replacingPhrase(from, with: replacement.to, in: result)
+            result = Self.replacingPhrase(replacement.from, with: replacement.to, in: result).text
         }
         return result
     }
@@ -202,15 +200,24 @@ final class Library: ObservableObject {
     func expandSnippets(_ text: String) -> String {
         var result = text
         for index in snippets.indices {
-            let cue = snippets[index].cue.trimmingCharacters(in: .whitespaces)
-            guard !cue.isEmpty else { continue }
-            let expanded = Self.replacingPhrase(cue, with: snippets[index].text, in: result)
-            if expanded != result {
-                snippets[index].used += 1
+            let (expanded, count) = Self.replacingPhrase(snippets[index].cue, with: snippets[index].text, in: result)
+            if count > 0 {
+                snippets[index].used += count
                 result = expanded
             }
         }
         return result
+    }
+
+    /// The same library held in memory only, so a test run can't change library.json.
+    func inMemoryCopy() -> Library {
+        let copy = Library(directory: nil)
+        copy.terms = terms
+        copy.replacements = replacements
+        copy.snippets = snippets
+        copy.groups = groups
+        copy.spokenEmoji = spokenEmoji
+        return copy
     }
 
     /// Capitalized or mixed-case words seen at least twice in history that
@@ -222,15 +229,25 @@ final class Library: ObservableObject {
             // A capital at the start of a sentence says nothing; elsewhere it marks a name.
             for sentence in entry.text.split(whereSeparator: { ".!?\n:".contains($0) }) {
                 let words = sentence.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "-" })
-                for (index, raw) in words.enumerated() {
-                    let word = String(raw).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-                    guard word.count >= 3 else { continue }
+                    .map { String($0).trimmingCharacters(in: CharacterSet(charactersIn: "-")) }
+                // Neighbouring name-like words make one suggestion: "Durable Object".
+                var run: [String] = []
+                func flush() {
+                    let name = run.joined(separator: " ")
+                    if name.count >= 3, !known.contains(name.lowercased()) { counts[name, default: 0] += 1 }
+                    run = []
+                }
+                for (index, word) in words.enumerated() {
                     let mixedCase = word.dropFirst().contains(where: \.isUppercase)
                         || (word.contains(where: \.isNumber) && word.contains(where: \.isLetter))
                     let capitalized = word.first?.isUppercase == true && index > 0
-                    guard mixedCase || capitalized, !known.contains(word.lowercased()) else { continue }
-                    counts[word, default: 0] += 1
+                    if (mixedCase || capitalized) && !known.contains(word.lowercased()) {
+                        run.append(word)
+                    } else {
+                        flush()
+                    }
                 }
+                flush()
             }
         }
         return counts.filter { $0.value >= 2 }
@@ -248,12 +265,17 @@ final class Library: ObservableObject {
     ]
 
     /// Case-insensitive whole-phrase replacement.
-    static func replacingPhrase(_ phrase: String, with replacement: String, in text: String) -> String {
-        let pattern = "(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: phrase) + "(?![\\p{L}\\p{N}])"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return text }
+    /// Words match across any run of whitespace ("my  email"). Returns the new text and the match count.
+    static func replacingPhrase(_ phrase: String, with replacement: String, in text: String) -> (text: String, count: Int) {
+        let words = phrase.split(whereSeparator: \.isWhitespace).map { NSRegularExpression.escapedPattern(for: String($0)) }
+        guard !words.isEmpty else { return (text, 0) }
+        let pattern = "(?<![\\p{L}\\p{N}])" + words.joined(separator: "\\s+") + "(?![\\p{L}\\p{N}])"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return (text, 0) }
         let range = NSRange(text.startIndex..., in: text)
-        return regex.stringByReplacingMatches(in: text, range: range,
-                                              withTemplate: NSRegularExpression.escapedTemplate(for: replacement))
+        let count = regex.numberOfMatches(in: text, range: range)
+        guard count > 0 else { return (text, 0) }
+        return (regex.stringByReplacingMatches(in: text, range: range,
+                                               withTemplate: NSRegularExpression.escapedTemplate(for: replacement)), count)
     }
 
     // MARK: - Storage

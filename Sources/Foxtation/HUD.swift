@@ -21,21 +21,16 @@ final class HUD {
     /// Called when the user presses esc while the pill is up.
     var onCancel: (() -> Void)?
 
-    var placement: HUDPlacement = .rightEdge {
-        didSet {
-            model.placement = placement
-            if model.isVisible { window.place(placement) }
-        }
-    }
-
     private let model = HUDModel()
-    private let flight = FoxFlight()
-    private lazy var window = DictationHUDWindow(model: model, flight: flight)
+    private lazy var window = DictationHUDWindow(model: model)
     private let dismissTimer = DismissTimer()
     private var keyMonitors: [Any] = []
     private var followTimer: Timer?
-    private var lastFoxLevel = Date.distantPast
     private var undoAction: (() -> Void)?
+    /// True from show until the fade-out finishes ordering the window out.
+    private var isVisible = false
+    /// Bumped on every show, so a late fade-out can't hide a newer pill.
+    private var generation = 0
 
     init() {
         model.onClose = { [weak self] in self?.escPressed() }
@@ -49,8 +44,8 @@ final class HUD {
         window.prewarm()
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
-            guard let self, self.model.isVisible else { return }
-            self.window.place(self.placement)
+            guard let self, self.isVisible else { return }
+            self.window.place()
         }
     }
 
@@ -97,13 +92,10 @@ final class HUD {
         }
 
         dismissTimer.cancel()
-        model.fox.setState(hudState.foxState)
 
-        if model.isVisible {
-            // Recording ended (or failed) before the fox landed: seat it now.
-            if hudState != .listening { model.finishEntry(flight: flight) }
-            // Only colors and the fox pose change between states.
-            withAnimation(.easeInOut(duration: 0.18)) {
+        if isVisible {
+            // Only colors and text change between states.
+            withAnimation(.easeInOut(duration: 0.15)) {
                 model.state = hudState
                 model.label = label
                 model.detail = detail
@@ -118,11 +110,11 @@ final class HUD {
             model.actionTitle = undoAction == nil ? nil : "Undo"
             model.listeningSince = hudState == .listening ? Date() : nil
             model.waveformStarted = false
-            model.isVisible = true
-            model.fox.isPaused = false
-            window.place(placement)
+            isVisible = true
+            generation += 1
+            window.place()
             window.orderFrontRegardless()
-            model.runEntry(flight: flight)
+            withAnimation(.easeOut(duration: model.reduceMotion ? 0.1 : 0.18)) { model.isShown = true }
             startKeyMonitors()
             startFollowingScreen()
             announce(label)
@@ -136,39 +128,32 @@ final class HUD {
 
     /// Mic level, 0...1, on the main thread.
     func updateLevel(_ level: Float) {
-        guard model.isVisible else { return }
+        guard isVisible else { return }
         model.meter.target = Double(level)
         if !model.waveformStarted && level > 0 { model.waveformStarted = true }
-        // The fox only needs ~20Hz.
-        let now = Date()
-        if now.timeIntervalSince(lastFoxLevel) >= 0.05 {
-            lastFoxLevel = now
-            model.fox.setAmplitude(Double(level))
-        }
     }
 
     func hide() {
-        dismiss(model.state == .success ? .success : .normal)
+        dismiss()
     }
 
-    /// Collapses straight out; never shows success.
+    /// Same fade as hide; kept separate so callers say what happened.
     func cancel() {
-        dismiss(.cancelled)
+        dismiss()
     }
 
-    private func dismiss(_ kind: HUDModel.ExitKind) {
+    private func dismiss() {
         dismissTimer.cancel()
-        guard model.isVisible else { return }
-        model.isVisible = false
+        guard isVisible else { return }
+        isVisible = false
         stopKeyMonitors()
         stopFollowingScreen()
-        if kind == .cancelled { model.state = .cancelled }
-        model.runExit(kind, flight: flight) { [weak self] in
-            guard let self else { return }
+        let shown = generation
+        withAnimation(.easeIn(duration: 0.15)) { model.isShown = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self, self.generation == shown, !self.isVisible else { return }
             self.window.orderOut(nil)
             self.model.state = .hidden
-            self.model.fox.setState(.idle)
-            self.model.fox.isPaused = true
         }
     }
 
@@ -199,7 +184,7 @@ final class HUD {
     }
 
     private func escPressed() {
-        guard model.isVisible else { return }
+        guard isVisible else { return }
         if let onCancel { onCancel() } else { cancel() }
     }
 
@@ -210,7 +195,7 @@ final class HUD {
         followTimer?.invalidate()
         followTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.window.place(self.placement)
+            self.window.place()
         }
     }
 

@@ -84,7 +84,6 @@ final class Settings: ObservableObject {
     var playSounds: Bool { didSet { persist("playSounds", playSounds) } }
     var holdRightOption: Bool { didSet { persist("holdRightOption", holdRightOption) } }
     var showHUD: Bool { didSet { persist("showHUD", showHUD) } }
-    var hudPlacement: HUDPlacement { didSet { persist("hudPlacement", hudPlacement.rawValue) } }
     var launchAtLogin: Bool { didSet { persist("launchAtLogin", launchAtLogin) } }
     var threads: Int { didSet { persist("threads", threads) } }
     var maxSeconds: Double { didSet { persist("maxSeconds", maxSeconds) } }
@@ -119,7 +118,6 @@ final class Settings: ObservableObject {
             "playSounds": true,
             "holdRightOption": true,
             "showHUD": true,
-            "hudPlacement": HUDPlacement.rightEdge.rawValue,
             "launchAtLogin": false,
             "threads": max(2, min(8, ProcessInfo.processInfo.activeProcessorCount - 2)),
             "maxSeconds": 120.0,
@@ -148,7 +146,6 @@ final class Settings: ObservableObject {
         playSounds = d.bool(forKey: "playSounds")
         holdRightOption = d.bool(forKey: "holdRightOption")
         showHUD = d.bool(forKey: "showHUD")
-        hudPlacement = HUDPlacement(rawValue: d.string(forKey: "hudPlacement") ?? "") ?? .rightEdge
         launchAtLogin = d.bool(forKey: "launchAtLogin")
         threads = d.integer(forKey: "threads")
         maxSeconds = d.double(forKey: "maxSeconds")

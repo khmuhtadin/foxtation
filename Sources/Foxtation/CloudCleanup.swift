@@ -230,19 +230,19 @@ final class CloudStatus: ObservableObject {
         }
     }
 
-    /// Frees this Mac's activation and forgets it locally either way.
+    /// Frees this Mac's activation. It's forgotten locally only once the server
+    /// confirms (or says it's already gone); offline or a server error keeps it,
+    /// so the slot isn't lost while still counted.
     @MainActor
     func deactivate() async throws {
-        defer {
-            settings.activationID = ""
-            license = nil
-            usage = nil
-        }
         do {
             try await CloudCleanup.deactivate(licenseKey: settings.licenseKey, activationID: settings.activationID)
         } catch CloudError.notAvailable {
             // Already gone on the server.
         }
+        settings.activationID = ""
+        license = nil
+        usage = nil
     }
 }
 

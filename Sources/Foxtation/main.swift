@@ -59,7 +59,7 @@ func runHeadlessIfRequested() -> Bool {
             if arguments.contains("--cleanup") {
                 try await printCleanup(of: transcript, settings: settings,
                                        bundleID: value(for: "--app") ?? "",
-                                       library: arguments.contains("--sample-library") ? .sample() : .shared)
+                                       library: arguments.contains("--sample-library") ? .sample() : Library.shared.inMemoryCopy())
             } else {
                 print(transcript.text)
             }
