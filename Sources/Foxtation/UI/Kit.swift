@@ -141,14 +141,30 @@ struct FXButtonStyle: ButtonStyle {
     var compact = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        StyledBody(configuration: configuration, style: self)
+    }
+
+    /// A view, so it can read whether the button is enabled.
+    private struct StyledBody: View {
+        var configuration: Configuration
+        var style: FXButtonStyle
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            style.styled(configuration.label, pressed: configuration.isPressed)
+                .opacity(isEnabled ? 1 : 0.45)
+        }
+    }
+
+    private func styled<Label: View>(_ label: Label, pressed: Bool) -> some View {
+        label
             .font(FXFont.body.weight(.medium))
             .padding(.horizontal, compact ? 10 : 14)
             .padding(.vertical, compact ? 5 : 7)
             .foregroundStyle(foreground)
             .background(RoundedRectangle(cornerRadius: 7).fill(fill))
             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(border))
-            .opacity(configuration.isPressed ? 0.75 : 1)
+            .opacity(pressed ? 0.75 : 1)
             .contentShape(RoundedRectangle(cornerRadius: 7))
     }
 

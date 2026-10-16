@@ -70,7 +70,6 @@ struct LicenseSettings: View {
                     Button(form.busy ? "Checking…" : "Activate", action: activate)
                         .fxButton(.primary)
                         .disabled(form.busy || trimmedKey.isEmpty)
-                        .opacity(form.busy || trimmedKey.isEmpty ? 0.5 : 1)
                 }
                 Text("Paste the key from your Polar receipt. This Mac is then activated against it.")
                     .font(FXFont.detail).foregroundStyle(Color.fxSecondary)
