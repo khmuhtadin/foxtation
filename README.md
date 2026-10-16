@@ -46,7 +46,7 @@ The MLX engine also needs [uv](https://docs.astral.sh/uv/) (`brew install uv`). 
 
 ## First run
 
-1. Look for the fox in the menu bar and open **Settings…**.
+1. Look for the fox in the menu bar and open **Open Foxtation…** (Home, Insights, Dictionary, Snippets, Style) or **Settings…**.
 2. **Engine** — press **Set Up** to create the MLX runtime (about 200 MB), then download a model. *Large v3 Turbo* is the default.
 3. **General › Permissions** — allow **Microphone**, then **Accessibility**. Accessibility is what lets Foxtation paste into other apps.
 
@@ -79,15 +79,15 @@ MLX keeps the model loaded in a background worker, so its load time is paid once
 
 ## Foxtation Cloud
 
-Optional, paid. **Settings › Cloud › AI cleanup** turns the raw transcript into what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, tone matched to the app you're typing in. Mixed Indonesian and English stays mixed.
+Optional, paid. **Settings › Cloud cleanup** turns the raw transcript into what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, tone matched to the app you're typing in. Mixed Indonesian and English stays mixed.
 
-Get a license key from the [Foxtation store](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C), paste it into **Settings › Cloud** and press **Activate**.
+Get a license key from the [Foxtation store](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C), paste it into **Settings › License** and press **Activate**. If cleanup fails for any reason (daily limit, offline, license problem), the raw transcript is pasted instead.
 
 ## Privacy
 
 Audio is recorded to a temporary file, transcribed locally and deleted. Model weights are downloaded once from Hugging Face; after that Foxtation works offline.
 
-With Foxtation Cloud switched on, the transcribed text (never audio) and the name of the app you're dictating into are sent to the Foxtation server for cleanup. With it off, nothing is sent anywhere.
+With Foxtation Cloud switched on, the transcribed text (never audio), your dictionary words, snippet cues, the style for the app's group and (unless **Settings › Data & Privacy › Share the app name** is off) the name of the app you're dictating into are sent to the Foxtation server for cleanup. History stays on this Mac. With it off, nothing is sent anywhere.
 
 ## Command line
 

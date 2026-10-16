@@ -534,7 +534,7 @@ struct LicenseSettings: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
                     Text("Foxtation Cloud").font(.system(size: 17, weight: .semibold))
-                    Text(active ? (license?.status?.capitalized ?? "Active") : "Not active")
+                    Text(active ? Self.statusLabel(license?.status) : "Not active")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(active ? Fx.ink : Fx.card)
                         .padding(.horizontal, 8).padding(.vertical, 2)
@@ -683,6 +683,12 @@ struct LicenseSettings: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
+    }
+
+    /// Polar says "granted" for a working key.
+    static func statusLabel(_ status: String?) -> String {
+        guard let status, status != "granted" else { return "Active" }
+        return status.capitalized
     }
 
     /// "FOX-1234-5678-ABCD" → "FOX-••••-••••-ABCD": the first group and last four stay readable.

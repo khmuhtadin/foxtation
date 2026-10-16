@@ -137,7 +137,7 @@ enum WindowSnapshots {
         model.snapshotUserName = "Khairul Muhtadin"
         let resets = calendar.date(from: DateComponents(year: 2026, month: 10, day: 17, hour: 7))!
         model.usage = CloudUsage(used: 186, limit: 500, resets_at: ISO8601DateFormatter().string(from: resets))
-        model.license = LicenseInfo(status: "active", display_key: "****-8F2K", expires_at: nil,
+        model.license = LicenseInfo(status: "granted", display_key: "****-8F2K", expires_at: nil,
                                     activations: .init(used: 1, limit: 3),
                                     this_device: .init(activation_id: "sample-activation", label: "MacBook Pro", created_at: nil),
                                     portal_url: "https://polar.sh")
