@@ -81,7 +81,7 @@ MLX keeps the model loaded in a background worker, so its load time is paid once
 
 Optional, paid. **Settings › Cloud › AI cleanup** turns the raw transcript into what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, tone matched to the app you're typing in. Mixed Indonesian and English stays mixed.
 
-Get a license key from the [Foxtation store](https://polar.sh/khmuhtadin), paste it into **Settings › Cloud** and press **Activate**.
+Get a license key from the [Foxtation store](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C), paste it into **Settings › Cloud** and press **Activate**.
 
 ## Privacy
 

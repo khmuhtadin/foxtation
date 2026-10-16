@@ -17,8 +17,8 @@ enum CloudError: LocalizedError {
 /// The service runs on the Foxtation server and needs a paid license key.
 enum CloudCleanup {
 
-    static let server = URL(string: "https://foxtation-cloud.khmuhtadin.workers.dev")!
-    static let buyURL = URL(string: "https://polar.sh/khmuhtadin")!
+    static let server = URL(string: "https://foxtation.khaisa.studio")!
+    static let buyURL = URL(string: "https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C")!
 
     static func clean(_ text: String, language: String, app: String?, licenseKey: String) async throws -> String {
         let body: [String: String] = ["text": text, "language": language, "app": app ?? ""]
