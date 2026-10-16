@@ -181,7 +181,10 @@ extension History {
         for day in 1...140 where day % 7 != 3 && day % 11 != 5 {
             let date = calendar.date(byAdding: .day, value: -day, to: today)!
             for k in 0..<(1 + (day * 7) % 6) {
-                let line = lines[(day + k) % lines.count]
+                var line = lines[(day + k) % lines.count]
+                if k == 0 && day % 3 == 0 {
+                    line = ("Slack", "com.tinyspeck.slackmacgap", "Aku cek dulu di Cloudflare, terus update harganya di Polar ya.")
+                }
                 let at = calendar.date(byAdding: .minute, value: 9 * 60 + k * 47, to: date)!
                 entries.append(Dictation(date: at, app: line.0, bundleID: line.1, raw: line.2, text: line.2,
                                          seconds: Double(Dictation.wordCount(line.2)) / 2.4, cloud: k % 3 != 2,

@@ -103,6 +103,10 @@ The app binary can transcribe a file without opening the UI:
 
 Options: `--engine mlx|cpp`, `--model <name or path>`, `--language <code>`, `--translate`, `--prompt <text>`. The transcript goes to stdout.
 
+Add `--cleanup --app <bundle id>` to run the whole dictation pipeline as if you'd dictated into that app — Foxtation Cloud (with your style for that app), then replacements and snippets — and print each stage instead of pasting. `--sample-library` uses a sample dictionary instead of yours. Handy with `say -v Damayanti -o clip.wav --data-format=LEI16@16000 "…"`.
+
+For development: `--render-window <dir> [filter]` writes a PNG of every screen with sample data, and `--ui-test` clicks and types through the window with throwaway data and prints PASS/FAIL per step.
+
 ## Build from source
 
 Needs the Xcode Command Line Tools (`xcode-select --install`).

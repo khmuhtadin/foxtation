@@ -216,7 +216,7 @@ final class Library: ObservableObject {
     /// Capitalized or mixed-case words seen at least twice in history that
     /// aren't in the dictionary yet. Most frequent first.
     func suggestions(from history: [Dictation], limit: Int = 4) -> [String] {
-        let known = Set(terms.map { $0.text.lowercased() } + dismissedSuggestions)
+        let known = Set(terms.map { $0.text.lowercased() } + dismissedSuggestions + Self.calendarWords)
         var counts: [String: Int] = [:]
         for entry in history.prefix(500) {
             // A capital at the start of a sentence says nothing; elsewhere it marks a name.
@@ -237,6 +237,15 @@ final class Library: ObservableObject {
             .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
             .prefix(limit).map(\.key)
     }
+
+    /// Capitalized everywhere, so never worth suggesting.
+    static let calendarWords = [
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu",
+        "january", "february", "march", "april", "may", "june", "july", "august",
+        "september", "october", "november", "december",
+        "januari", "februari", "maret", "mei", "juni", "juli", "agustus", "oktober", "desember",
+    ]
 
     /// Case-insensitive whole-phrase replacement.
     static func replacingPhrase(_ phrase: String, with replacement: String, in text: String) -> String {

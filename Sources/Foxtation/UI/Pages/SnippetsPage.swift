@@ -231,6 +231,12 @@ struct SnippetsEditor: View {
 
             DictionaryField(label: "Expands to") {
                 TextEditor(text: $draft.text)
+                    // ⌘↩ saves from inside the box; the Save button's shortcut doesn't reach it.
+                    .onKeyPress(.return, phases: .down) { press in
+                        guard press.modifiers.contains(.command) else { return .ignored }
+                        save()
+                        return .handled
+                    }
                     .font(FXFont.body)
                     .foregroundStyle(Color.fxInk)
                     .scrollContentBackground(.hidden)

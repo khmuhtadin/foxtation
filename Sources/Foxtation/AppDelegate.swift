@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentCapture: URL?
     private var lastTranscript: String?
     /// The app the user is dictating into, captured when recording starts.
-    private var target = (name: "", bundleID: "")
+    private var target = DictationTarget(name: "", bundleID: "")
     /// Bumped on every finish/cancel so a stale transcription result is dropped.
     private var session = 0
     private var registeredHotKey: (code: UInt32, modifiers: UInt32)?
@@ -231,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         wireRecorder()
         let front = NSWorkspace.shared.frontmostApplication
-        target = (front?.localizedName ?? "", front?.bundleIdentifier ?? "")
+        target = DictationTarget(name: front?.localizedName ?? "", bundleID: front?.bundleIdentifier ?? "")
         do {
             try recorder.start()
             phase = .recording
@@ -290,7 +290,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            let cleanup = await self.cleanUp(raw, target: target, session: mySession)
+            let request = await MainActor.run { () -> CleanupRequest? in
+                let request = DictationPipeline.request(for: raw, target: target, settings: self.settings, library: self.library)
+                if request != nil, self.session == mySession, self.settings.showHUD {
+                    self.hud.show(.cleaning(app: target.name))
+                }
+                return request
+            }
+            let cleanup = await DictationPipeline.cleanUp(raw, request: request,
+                                                          licenseKey: self.settings.licenseKey,
+                                                          activationID: self.settings.activationID)
             await MainActor.run {
                 guard self.session == mySession else { return }  // cancelled meanwhile
                 self.currentCapture = nil
@@ -300,9 +309,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.hud.show(.error("No speech detected"))
                     return
                 }
-                // Local, deterministic steps run on every path, cloud or not.
-                let group = self.library.group(forBundleID: target.bundleID)
-                let text = self.library.expandSnippets(self.library.applyReplacements(cleanup.text, group: group))
+                if let usage = cleanup.usage { self.cloud.usage = usage }
+                let text = DictationPipeline.finish(cleanup.text, target: target, library: self.library)
                 self.lastTranscript = text
                 self.refreshStatusItem()
                 self.deliver(text, raw: raw.text, fallback: cleanup.fallback)
@@ -345,37 +353,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                               duration: response.elapsed)
         case .whisperCpp:
             return try await Transcriber.transcribe(audio: audio, settings: settings)
-        }
-    }
-
-    /// Foxtation Cloud cleanup when it's switched on and licensed. Any failure
-    /// falls back to the raw transcript with a short reason for the pill.
-    private func cleanUp(_ raw: Transcript, target: (name: String, bundleID: String),
-                         session mySession: Int) async -> (text: String, cloud: Bool, changes: CloudChanges?, fallback: String?) {
-        guard settings.cloudCleanup, !settings.activationID.isEmpty, !raw.text.isEmpty else {
-            return (raw.text, false, nil, nil)
-        }
-        let request = await MainActor.run { () -> CleanupRequest in
-            if self.session == mySession, self.settings.showHUD { self.hud.show(.cleaning(app: target.name)) }
-            return CleanupRequest(text: raw.text,
-                                  language: raw.language,
-                                  app: self.settings.shareAppName ? target.name : nil,
-                                  vocabulary: self.library.vocabulary,
-                                  snippetCues: self.library.snippetCues,
-                                  style: self.library.style(forBundleID: target.bundleID),
-                                  spokenEmoji: self.library.spokenEmoji)
-        }
-        do {
-            let reply = try await CloudCleanup.clean(request, licenseKey: settings.licenseKey,
-                                                     activationID: settings.activationID)
-            if let usage = reply.usage { await MainActor.run { self.cloud.usage = usage } }
-            return (reply.text, true, reply.changes, nil)
-        } catch let error as CloudError {
-            NSLog("Foxtation: cloud cleanup failed: %@", error.localizedDescription)
-            if case .dailyLimit(let usage?) = error { await MainActor.run { self.cloud.usage = usage } }
-            return (raw.text, false, nil, error.fallbackLabel)
-        } catch {
-            return (raw.text, false, nil, CloudError.server("").fallbackLabel)
         }
     }
 

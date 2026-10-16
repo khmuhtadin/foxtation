@@ -49,9 +49,12 @@ struct DictionaryTextField: View {
     var placeholder: String
     @Binding var text: String
     var invalid = false
+    /// Return in the field. The Save button's shortcut alone doesn't reach a focused field.
+    var onSubmit: () -> Void = {}
 
     var body: some View {
         TextField(placeholder, text: $text)
+            .onSubmit(onSubmit)
             .textFieldStyle(.plain)
             .font(FXFont.body)
             .foregroundStyle(Color.fxInk)
@@ -84,7 +87,6 @@ struct DictionarySheetButtons: View {
                 .fxButton(.dark)
                 .keyboardShortcut(.return, modifiers: saveWithCommand ? .command : [])
                 .disabled(!canSave)
-                .opacity(canSave ? 1 : 0.4)
         }
     }
 }
@@ -168,7 +170,7 @@ struct DictionaryEditor: View {
         let error = DictionaryRules.problem(draft.text, others: otherWords)
         return VStack(alignment: .leading, spacing: 14) {
             DictionaryField(label: "Word", error: error) {
-                DictionaryTextField(placeholder: "e.g. Jakmall", text: $draft.text, invalid: error != nil)
+                DictionaryTextField(placeholder: "e.g. Jakmall", text: $draft.text, invalid: error != nil, onSubmit: save)
             }
             DictionaryField(label: "Category") {
                 Picker("", selection: $draft.category) {
@@ -195,7 +197,7 @@ struct DictionaryEditor: View {
                     .foregroundStyle(Color.fxAccent)
                     .padding(.top, 30)
                 DictionaryField(label: "Write", error: toError) {
-                    DictionaryTextField(placeholder: "e.g. by the way", text: $draft.to, invalid: toError != nil)
+                    DictionaryTextField(placeholder: "e.g. by the way", text: $draft.to, invalid: toError != nil, onSubmit: save)
                 }
             }
             DictionaryField(label: "Where") {
