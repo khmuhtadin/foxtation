@@ -339,11 +339,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func cleanUp(_ transcript: Transcript) async throws -> Transcript {
         guard settings.cloudCleanup, !settings.activationID.isEmpty, !transcript.text.isEmpty else { return transcript }
         var cleaned = transcript
-        cleaned.text = try await CloudCleanup.clean(transcript.text,
-                                                    language: transcript.language,
-                                                    app: targetApp,
+        cleaned.text = try await CloudCleanup.clean(CleanupRequest(text: transcript.text,
+                                                                   language: transcript.language,
+                                                                   app: targetApp),
                                                     licenseKey: settings.licenseKey,
-                                                    activationID: settings.activationID)
+                                                    activationID: settings.activationID).text
         return cleaned
     }
 
