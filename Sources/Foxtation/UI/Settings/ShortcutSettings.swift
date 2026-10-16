@@ -1,0 +1,44 @@
+import AppKit
+import SwiftUI
+
+struct ShortcutSettings: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RowsCard {
+                SettingRow(title: "Shortcut", detail: "Click, then press the new keys. Must include ⌘, ⌥ or ⌃.") {
+                    ShortcutRecorder(settings: model.settings).frame(width: 120, height: 24)
+                }
+                RowDivider()
+                SettingRow(title: "Shortcut mode", detail: nil) {
+                    MenuPicker(selection: model.setting(\.triggerMode),
+                               items: [(.toggle, "Press to start, again to stop"), (.hold, "Hold while speaking")])
+                }
+                RowDivider()
+                SettingRow(title: "Hold right ⌥ to talk", detail: "Double-tap it for hands-free.") {
+                    FXSwitch(isOn: model.setting(\.holdRightOption))
+                }
+            }
+            SettingsNote(text: "Esc cancels recording a new shortcut and keeps the current one.")
+        }
+    }
+}
+
+/// The AppKit hot key recorder from the old settings window.
+struct ShortcutRecorder: NSViewRepresentable {
+    let settings: Settings
+
+    func makeNSView(context: Context) -> RecorderButton {
+        let button = RecorderButton()
+        button.onCapture = { code, modifiers in
+            settings.hotKeyCode = code
+            settings.hotKeyModifiers = modifiers
+        }
+        return button
+    }
+
+    func updateNSView(_ button: RecorderButton, context: Context) {
+        button.update(keyCode: settings.hotKeyCode, modifiers: settings.hotKeyModifiers)
+    }
+}

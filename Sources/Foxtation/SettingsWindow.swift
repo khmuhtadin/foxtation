@@ -53,9 +53,9 @@ final class SettingsContent: FillView {
     init(settings: Settings, onChange: @escaping () -> Void) {
         panes = [
             GeneralPane(settings: settings, onChange: onChange),
-            EnginePane(settings: settings, onChange: onChange),
+            EnginePane(settings: settings, onChange: onChange, width: Layout.cardWidth),
             CloudPane(settings: settings),
-            AdvancedPane(settings: settings, onChange: onChange),
+            AdvancedPane(settings: settings, onChange: onChange, width: Layout.cardWidth),
         ]
         super.init(color: Palette.background)
 
@@ -156,9 +156,12 @@ final class SettingsContent: FillView {
 class FillView: NSView {
 
     var color: NSColor { didSet { needsDisplay = true } }
+    /// Optional hairline around the view.
+    var border: NSColor? { didSet { needsDisplay = true } }
 
-    init(color: NSColor, radius: CGFloat = 0) {
+    init(color: NSColor, radius: CGFloat = 0, border: NSColor? = nil) {
         self.color = color
+        self.border = border
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = radius
@@ -170,6 +173,8 @@ class FillView: NSView {
 
     override func updateLayer() {
         layer?.backgroundColor = color.cgColor  // re-resolved on every appearance change
+        layer?.borderColor = border?.cgColor
+        layer?.borderWidth = border == nil ? 0 : 1
     }
 }
 
@@ -255,7 +260,7 @@ private final class Row: NSStackView {
 }
 
 /// A titled white card holding rows separated by hairlines.
-private func card(_ title: String?, _ rows: [NSView]) -> NSStackView {
+private func card(_ title: String?, _ rows: [NSView], width: CGFloat = Layout.cardWidth) -> NSStackView {
     let body = NSStackView()
     body.orientation = .vertical
     body.alignment = .leading
@@ -273,7 +278,7 @@ private func card(_ title: String?, _ rows: [NSView]) -> NSStackView {
         row.widthAnchor.constraint(equalTo: body.widthAnchor).isActive = true
     }
 
-    let background = FillView(color: Palette.card, radius: 12)
+    let background = FillView(color: Palette.card, radius: 10, border: Palette.separator)
     body.translatesAutoresizingMaskIntoConstraints = false
     background.addSubview(body)
     NSLayoutConstraint.activate([
@@ -293,12 +298,13 @@ private func card(_ title: String?, _ rows: [NSView]) -> NSStackView {
         group.setCustomSpacing(6, after: heading)
     }
     group.addArrangedSubview(background)
-    background.widthAnchor.constraint(equalToConstant: Layout.cardWidth).isActive = true
+    background.widthAnchor.constraint(equalToConstant: width).isActive = true
     return group
 }
 
 /// A pane is a column of cards; AppDelegate-facing state lives in the subclasses.
-private class Pane: NSStackView {
+/// The Engine and Advanced panes are also shown in the main window's Settings panel.
+class Pane: NSStackView {
 
     /// Asks the window to re-fit after rows were shown or hidden.
     var onResize: (() -> Void)?
@@ -492,11 +498,12 @@ private final class PermissionRow: NSView {
 
 // MARK: - Engine
 
-private final class EnginePane: Pane {
+final class EnginePane: Pane {
 
     private let settings: Settings
     private let onChange: () -> Void
     private let runtime = MLXRuntime.shared
+    private let width: CGFloat
 
     private let engineControl = NSSegmentedControl()
     private var mlxCard: NSView!
@@ -508,9 +515,10 @@ private final class EnginePane: Pane {
     private let keepLoaded = Toggle()
     private var loading = false
 
-    init(settings: Settings, onChange: @escaping () -> Void) {
+    init(settings: Settings, onChange: @escaping () -> Void, width: CGFloat) {
         self.settings = settings
         self.onChange = onChange
+        self.width = width
         super.init()
 
         engineControl.segmentStyle = .rounded
@@ -521,7 +529,7 @@ private final class EnginePane: Pane {
         engineControl.selectedSegmentBezelColor = Palette.accent
         engineControl.target = self
         engineControl.action = #selector(engineChanged)
-        addArrangedSubview(card(nil, [Row("Engine", detail: "MLX is fastest on Apple silicon", [engineControl])]))
+        addArrangedSubview(card(nil, [Row("Engine", detail: "MLX is fastest on Apple silicon", [engineControl])], width: width))
 
         setupButton.controlSize = .small
         let update: () -> Void = { [weak self] in
@@ -536,12 +544,12 @@ private final class EnginePane: Pane {
             self.onChange()
         }
         mlxCard = card("MLX models", [Row("Python runtime", [runtimeStatus, setupButton])] + mlxRows
-            + [Row("Keep model in memory", detail: "Instant start, uses about 1.6 GB", [keepLoaded])])
+            + [Row("Keep model in memory", detail: "Instant start, uses about 1.6 GB", [keepLoaded])], width: width)
         addArrangedSubview(mlxCard)
 
         cppRows = ModelStore.catalog.map { CppModelRowView(descriptor: $0, settings: settings, store: ModelStore.shared, onUpdate: update) }
         cppCard = card("whisper.cpp models", cppRows
-            + [Row("Needs whisper-cli", detail: "brew install whisper-cpp", [])])
+            + [Row("Needs whisper-cli", detail: "brew install whisper-cpp", [])], width: width)
         addArrangedSubview(cppCard)
 
         runtime.onChange = { [weak self] in self?.reload() }
@@ -835,7 +843,7 @@ private final class CloudPane: Pane {
 
 // MARK: - Advanced
 
-private final class AdvancedPane: Pane {
+final class AdvancedPane: Pane {
 
     private let settings: Settings
     private let onChange: () -> Void
@@ -846,10 +854,12 @@ private final class AdvancedPane: Pane {
     private let prompt = NSTextView()
     private let binaryValue = label("", size: 12)
     private var loading = false
+    private let width: CGFloat
 
-    init(settings: Settings, onChange: @escaping () -> Void) {
+    init(settings: Settings, onChange: @escaping () -> Void, width: CGFloat) {
         self.settings = settings
         self.onChange = onChange
+        self.width = width
         super.init()
 
         threadsStepper.minValue = 1
@@ -884,7 +894,7 @@ private final class AdvancedPane: Pane {
         field.addSubview(scroll)
         field.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            field.widthAnchor.constraint(equalToConstant: Layout.cardWidth - 28),
+            field.widthAnchor.constraint(equalToConstant: width - 28),
             field.heightAnchor.constraint(equalToConstant: 52),
             scroll.leadingAnchor.constraint(equalTo: field.leadingAnchor, constant: 8),
             scroll.trailingAnchor.constraint(equalTo: field.trailingAnchor, constant: -4),
@@ -914,10 +924,10 @@ private final class AdvancedPane: Pane {
             Row("Max recording length", detail: "Recording stops automatically", [maxValue, maxSlider]),
             Row("CPU threads", detail: "whisper.cpp only", [threadsValue, threadsStepper]),
             Row("whisper-cli binary", detail: "brew install whisper-cpp", [binaryValue, choose]),
-        ]))
+        ], width: width))
         addArrangedSubview(card(nil, [
             Row("Reset all settings", detail: "Models and the MLX runtime are kept", [reset]),
-        ]))
+        ], width: width))
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
