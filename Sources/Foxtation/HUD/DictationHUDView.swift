@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 enum HUDState {
-    case hidden, listening, processing, success, error, cancelled
+    /// `warning`: text was pasted, but without cloud cleanup (limit, offline, license).
+    case hidden, listening, processing, success, warning, error, cancelled
 
     var foxState: FoxState {
         switch self {
@@ -10,7 +11,7 @@ enum HUDState {
         case .processing: return .think
         case .success: return .success
         case .error: return .error
-        case .hidden, .cancelled: return .idle
+        case .hidden, .cancelled, .warning: return .idle
         }
     }
 
@@ -20,6 +21,7 @@ enum HUDState {
         case .listening:  return Color(hex: 0x6C7DF2)
         case .processing: return Color(hex: 0xFF9F0A)
         case .success:    return Color(hex: 0x30D158)
+        case .warning:    return Color(hex: 0xFF9F0A)
         case .error:      return Color(hex: 0xFF453A)
         case .hidden, .cancelled: return Color.white.opacity(0.2)
         }
@@ -42,7 +44,7 @@ enum HUDState {
     }
 
     var showsWaveform: Bool { self == .listening || self == .processing }
-    var showsEsc: Bool { self == .listening }
+    var showsClose: Bool { self == .listening }
 }
 
 /// Where things sit inside the pill, measured from its leading edge. The entry
@@ -69,6 +71,15 @@ extension Color {
 final class HUDModel: ObservableObject {
     @Published var state: HUDState = .hidden
     @Published var label = ""
+    /// Quieter text after the label: "Slack", "· 24 words", "· raw text pasted".
+    @Published var detail = ""
+    /// Set while listening; the pill shows the elapsed time.
+    @Published var listeningSince: Date?
+    /// A small button at the trailing end, e.g. "Undo".
+    @Published var actionTitle: String?
+    var onAction: (() -> Void)?
+    /// The × while listening.
+    var onClose: (() -> Void)?
     @Published var placement: HUDPlacement = .rightEdge
 
     @Published var pillOffset: CGSize = .zero
@@ -157,13 +168,27 @@ struct PillView: View {
                 .scaleEffect(model.slotScale)
                 .opacity(model.slotOpacity)
 
-            Text(model.label)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(state.labelColor)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .opacity(model.contentOpacity)
+            HStack(spacing: 6) {
+                Text(model.label)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(state.labelColor)
+                    .layoutPriority(1)
+                if let since = model.listeningSince, state == .listening {
+                    TimelineView(.periodic(from: since, by: 1)) { context in
+                        Text(Self.elapsed(since, context.date))
+                            .font(.system(size: 13, weight: .medium).monospacedDigit())
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                } else if !model.detail.isEmpty {
+                    Text(model.detail)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
+            }
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(model.contentOpacity)
 
             ZStack {
                 WaveformView(meter: model.meter, state: state, paused: !model.isVisible)
@@ -173,20 +198,41 @@ struct PillView: View {
                     .font(.system(size: 22, weight: .semibold))
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(.white, HUDState.success.accent)
-                    .opacity(state == .success ? 1 : 0)
+                    .opacity(state == .success && model.actionTitle == nil ? 1 : 0)
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(HUDState.warning.accent)
+                    .opacity(state == .warning ? 1 : 0)
             }
-            .frame(width: WaveformView.width)
+            .frame(width: model.actionTitle == nil ? WaveformView.width : 0)
+            .clipped()
             .opacity(model.contentOpacity)
 
-            Text("esc")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.5))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.2), lineWidth: 0.5))
-                .opacity(model.contentOpacity * (state.showsEsc ? 1 : 0))
-                .frame(width: state.showsEsc ? nil : 0)
-                .clipped()
+            if let action = model.actionTitle {
+                Button { model.onAction?() } label: {
+                    Text(action)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.white.opacity(0.16)))
+                }
+                .buttonStyle(.plain)
+                .opacity(model.contentOpacity)
+            }
+
+            Button { model.onClose?() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.7))
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cancel dictation (esc)")
+            .opacity(model.contentOpacity * (state.showsClose ? 1 : 0))
+            .frame(width: state.showsClose ? nil : 0)
+            .clipped()
         }
         .padding(.leading, PillMetrics.leadingInset)
         .padding(.trailing, 16)
@@ -204,6 +250,12 @@ struct PillView: View {
     }
 
     private static let navy = Color(hex: 0x0E1433)
+
+    /// "0:07"
+    static func elapsed(_ since: Date, _ now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(since)))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
 
     @ViewBuilder private var background: some View {
         if model.isSnapshot {

@@ -8,6 +8,12 @@ final class HUD {
     enum State {
         case listening
         case working
+        /// Waiting for Foxtation Cloud; `app` is the target app's name.
+        case cleaning(app: String)
+        /// Pasted. `undo` swaps in the raw transcript; nil hides the button.
+        case pasted(words: Int, undo: (() -> Void)?)
+        /// Pasted the raw transcript because cleanup failed; the reason is short.
+        case fallback(String)
         case message(String, seconds: TimeInterval)
         case error(String)
     }
@@ -29,8 +35,14 @@ final class HUD {
     private var keyMonitors: [Any] = []
     private var followTimer: Timer?
     private var lastFoxLevel = Date.distantPast
+    private var undoAction: (() -> Void)?
 
     init() {
+        model.onClose = { [weak self] in self?.escPressed() }
+        model.onAction = { [weak self] in
+            self?.undoAction?()
+            self?.hide()
+        }
         model.onHover = { [weak self] hovering in
             if hovering { self?.dismissTimer.pause() } else { self?.dismissTimer.resume() }
         }
@@ -47,14 +59,32 @@ final class HUD {
     func show(_ state: State) {
         let hudState: HUDState
         let label: String
+        var detail = ""
         var autoDismiss: TimeInterval?
+        undoAction = nil
         switch state {
         case .listening:
             hudState = .listening
-            label = "Listening…"
+            label = "Listening"
         case .working:
             hudState = .processing
             label = "Transcribing…"
+        case .cleaning(let app):
+            hudState = .processing
+            label = app.isEmpty ? "Cleaning up…" : "Cleaning up for"
+            detail = app
+        case .pasted(let words, let undo):
+            hudState = .success
+            label = "Pasted"
+            detail = "· \(words) word\(words == 1 ? "" : "s")"
+            undoAction = undo
+            autoDismiss = undo == nil ? 1.4 : 2.5
+        case .fallback(let reason):
+            NSLog("Foxtation: pasted raw transcript (%@)", reason)
+            hudState = .warning
+            label = reason
+            detail = "· raw text pasted"
+            autoDismiss = 3
         case .message(let text, let seconds):
             hudState = .success
             label = Self.pillText(text)
@@ -76,11 +106,17 @@ final class HUD {
             withAnimation(.easeInOut(duration: 0.18)) {
                 model.state = hudState
                 model.label = label
+                model.detail = detail
+                model.actionTitle = undoAction == nil ? nil : "Undo"
+                if hudState != .listening { model.listeningSince = nil }
             }
         } else {
             model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             model.state = hudState
             model.label = label
+            model.detail = detail
+            model.actionTitle = undoAction == nil ? nil : "Undo"
+            model.listeningSince = hudState == .listening ? Date() : nil
             model.waveformStarted = false
             model.isVisible = true
             model.fox.isPaused = false
@@ -92,7 +128,7 @@ final class HUD {
             announce(label)
         }
 
-        if hudState == .success { announce(label) }
+        if hudState == .success || hudState == .warning { announce(label + " " + detail) }
         if let autoDismiss {
             dismissTimer.start(autoDismiss) { [weak self] in self?.hide() }
         }

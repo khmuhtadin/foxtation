@@ -219,14 +219,18 @@ final class Library: ObservableObject {
         let known = Set(terms.map { $0.text.lowercased() } + dismissedSuggestions)
         var counts: [String: Int] = [:]
         for entry in history.prefix(500) {
-            let words = entry.text.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "." && $0 != "-" })
-            for (index, raw) in words.enumerated() {
-                let word = String(raw).trimmingCharacters(in: CharacterSet(charactersIn: ".-"))
-                guard word.count >= 3 else { continue }
-                let mixedCase = word.dropFirst().contains(where: \.isUppercase) || word.contains(where: \.isNumber)
-                let capitalized = word.first?.isUppercase == true && index > 0
-                guard (mixedCase || capitalized), !known.contains(word.lowercased()) else { continue }
-                counts[word, default: 0] += 1
+            // A capital at the start of a sentence says nothing; elsewhere it marks a name.
+            for sentence in entry.text.split(whereSeparator: { ".!?\n:".contains($0) }) {
+                let words = sentence.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "-" })
+                for (index, raw) in words.enumerated() {
+                    let word = String(raw).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+                    guard word.count >= 3 else { continue }
+                    let mixedCase = word.dropFirst().contains(where: \.isUppercase)
+                        || (word.contains(where: \.isNumber) && word.contains(where: \.isLetter))
+                    let capitalized = word.first?.isUppercase == true && index > 0
+                    guard mixedCase || capitalized, !known.contains(word.lowercased()) else { continue }
+                    counts[word, default: 0] += 1
+                }
             }
         }
         return counts.filter { $0.value >= 2 }

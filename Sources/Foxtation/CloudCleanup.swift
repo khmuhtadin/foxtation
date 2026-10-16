@@ -28,7 +28,7 @@ enum CloudError: LocalizedError {
         case .dailyLimit: return "Daily limit reached"
         case .offline: return "Offline"
         case .invalidLicense, .activationLimit: return "License problem"
-        case .notAvailable, .server: return "Cleanup unavailable"
+        case .notAvailable, .server: return "Cleanup failed"
         }
     }
 }

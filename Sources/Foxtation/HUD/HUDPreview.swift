@@ -15,11 +15,22 @@ extension VectorFoxAnimator {
 
 extension HUDModel {
     static let sampleLabels: [(HUDState, String)] = [
-        (.listening, "Listening…"),
-        (.processing, "Transcribing…"),
+        (.listening, "Listening"),
+        (.processing, "Cleaning up for"),
         (.success, "Pasted"),
+        (.warning, "Daily limit reached"),
         (.error, "No speech detected"),
     ]
+
+    /// The quieter text each sample shows after its label.
+    static func sampleDetail(_ state: HUDState) -> String {
+        switch state {
+        case .processing: return "Slack"
+        case .success: return "· 24 words"
+        case .warning: return "· raw text pasted"
+        default: return ""
+        }
+    }
 
     /// A seated pill in the given state.
     static func snapshot(_ state: HUDState, label: String, placement: HUDPlacement = .rightEdge) -> HUDModel {
@@ -28,6 +39,9 @@ extension HUDModel {
         model.placement = placement
         model.state = state
         model.label = label
+        model.detail = sampleDetail(state)
+        model.actionTitle = state == .success ? "Undo" : nil
+        model.listeningSince = state == .listening ? Date().addingTimeInterval(-7) : nil
         model.pillOpacity = 1
         model.contentOpacity = 1
         model.slotOpacity = 1
