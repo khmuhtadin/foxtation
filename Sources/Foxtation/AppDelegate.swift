@@ -81,6 +81,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         recorder.cancel()
     }
 
+    /// Opening Foxtation again (Finder, Spotlight, `open`) shows the main window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        mainWindow.show()
+        return false
+    }
+
     /// No Dock icon; the menu bar item is the only surface.
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 
