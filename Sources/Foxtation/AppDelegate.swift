@@ -312,7 +312,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let text = DictationPipeline.finish(cleanup.text, target: target, library: self.library)
                 self.lastTranscript = text
                 self.refreshStatusItem()
-                self.deliver(text, raw: raw.text, fallback: cleanup.fallback)
+                // Undo only when the cloud changed the words, and keep the local steps.
+                let undoText = cleanup.cloud && cleanup.text != raw.text
+                    ? DictationPipeline.finish(raw.text, target: target, library: self.library.inMemoryCopy())
+                    : nil
+                self.deliver(text, undoText: undoText, fallback: cleanup.fallback)
                 self.record(Dictation(date: Date(), app: target.name, bundleID: target.bundleID,
                                       raw: raw.text, text: text, seconds: seconds,
                                       cloud: cleanup.cloud,
@@ -355,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func deliver(_ text: String, raw: String, fallback: String?) {
+    private func deliver(_ text: String, undoText: String?, fallback: String?) {
         let outcome = Inserter.insert(text,
                                       method: settings.insertMethod,
                                       restoreClipboard: settings.restoreClipboard)
@@ -366,7 +370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let fallback {
                 hud.show(.fallback(fallback))
             } else {
-                let undo: (() -> Void)? = raw == text || raw.isEmpty ? nil : { [weak self] in self?.undoPaste(raw: raw) }
+                let undo: (() -> Void)? = undoText.map { original in { [weak self] in self?.undoPaste(original) } }
                 hud.show(.pasted(words: Dictation.wordCount(text), undo: undo))
             }
         case .copiedOnly:
@@ -381,8 +385,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Undo the paste in the target app, then paste what Whisper heard.
-    private func undoPaste(raw: String) {
+    /// Undo the paste in the target app, then paste the text without cloud cleanup.
+    private func undoPaste(_ raw: String) {
         Inserter.undo()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             guard let self else { return }
