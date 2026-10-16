@@ -829,7 +829,7 @@ private final class CloudPane: Pane {
     override func reload() {
         cleanup.isOn = settings.cloudCleanup
         if keyField.currentEditor() == nil { keyField.stringValue = settings.licenseKey }
-        showStatus(settings.licenseKey.isEmpty ? "● No license" : "● Saved", good: !settings.licenseKey.isEmpty)
+        showStatus(settings.activationID.isEmpty ? "● Not activated" : "● Active", good: !settings.activationID.isEmpty)
     }
 
     private func showStatus(_ text: String, good: Bool) {
@@ -845,8 +845,9 @@ private final class CloudPane: Pane {
         Task { @MainActor in
             defer { activate.isEnabled = true }
             do {
-                try await CloudCleanup.checkLicense(key)
+                let activationID = try await CloudCleanup.activate(key)
                 settings.licenseKey = key
+                settings.activationID = activationID
                 settings.cloudCleanup = true
                 cleanup.isOn = true
                 showStatus("● Active", good: true)

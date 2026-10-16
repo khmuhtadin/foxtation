@@ -337,12 +337,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Foxtation Cloud cleanup when it's switched on and licensed; otherwise the raw transcript.
     private func cleanUp(_ transcript: Transcript) async throws -> Transcript {
-        guard settings.cloudCleanup, !settings.licenseKey.isEmpty, !transcript.text.isEmpty else { return transcript }
+        guard settings.cloudCleanup, !settings.activationID.isEmpty, !transcript.text.isEmpty else { return transcript }
         var cleaned = transcript
         cleaned.text = try await CloudCleanup.clean(transcript.text,
                                                     language: transcript.language,
                                                     app: targetApp,
-                                                    licenseKey: settings.licenseKey)
+                                                    licenseKey: settings.licenseKey,
+                                                    activationID: settings.activationID)
         return cleaned
     }
 
