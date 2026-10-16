@@ -5,16 +5,6 @@ enum HUDState {
     /// `warning`: text was pasted, but without cloud cleanup (limit, offline, license).
     case hidden, listening, processing, success, warning, error, cancelled
 
-    var foxState: FoxState {
-        switch self {
-        case .listening: return .listen
-        case .processing: return .think
-        case .success: return .success
-        case .error: return .error
-        case .hidden, .cancelled, .warning: return .idle
-        }
-    }
-
     /// State color: the glowing border, its halo and the waveform.
     var accent: Color {
         switch self {
@@ -47,14 +37,12 @@ enum HUDState {
     var showsClose: Bool { self == .listening }
 }
 
-/// Where things sit inside the pill, measured from its leading edge. The entry
-/// choreography lands the flying fox on `faceCenterX` (vertically centered).
+/// Fixed pill geometry.
 enum PillMetrics {
-    static var width: CGFloat { HUDMetrics.pillSize.width }
-    static var height: CGFloat { HUDMetrics.pillSize.height }
+    static let width: CGFloat = 380
+    static let height: CGFloat = 52
     static let faceSize: CGFloat = 36
     static let leadingInset: CGFloat = 10
-    static let faceCenterX: CGFloat = leadingInset + faceSize / 2
 }
 
 extension Color {
@@ -66,8 +54,7 @@ extension Color {
 }
 
 /// Everything the pill renders. Mic level is deliberately not published: the
-/// waveform and fox read it from their own frame clocks, so audio never
-/// rebuilds the view tree.
+/// waveform reads it from its own frame clock, so audio never rebuilds the view tree.
 final class HUDModel: ObservableObject {
     @Published var state: HUDState = .hidden
     @Published var label = ""
@@ -77,34 +64,19 @@ final class HUDModel: ObservableObject {
     @Published var listeningSince: Date?
     /// A small button at the trailing end, e.g. "Undo".
     @Published var actionTitle: String?
-    var onAction: (() -> Void)?
-    /// The × while listening.
-    var onClose: (() -> Void)?
-    @Published var placement: HUDPlacement = .rightEdge
-
-    @Published var pillOffset: CGSize = .zero
-    @Published var pillScale: CGFloat = 1
-    @Published var pillOpacity: Double = 0
-    @Published var contentOpacity: Double = 0
-    @Published var runnerProgress: Double = 0
-    @Published var runnerOpacity: Double = 0
-    @Published var slotOpacity: Double = 0
-    @Published var slotScale: CGFloat = 1
+    /// Fades the pill in and out.
+    @Published var isShown = false
     /// Bars stay hidden until the first real audio buffer arrives.
     @Published var waveformStarted = false
-    @Published var isVisible = false
 
     let meter = LevelMeter()
-    let fox = VectorFoxAnimator()
-    var reduceMotion = false { didSet { fox.reduceMotion = reduceMotion } }
+    var reduceMotion = false
     /// Snapshots can't host NSVisualEffectView; draw a flat fill instead.
     var isSnapshot = false
     var onHover: ((Bool) -> Void)?
-
-    // Entry bookkeeping (see FoxOrbitEntry.swift).
-    var entryTask: Task<Void, Never>?
-    var generation = 0
-    var measuredSlotCenter: CGPoint?
+    var onAction: (() -> Void)?
+    /// The × while listening.
+    var onClose: (() -> Void)?
 }
 
 /// Smoothed mic level: 0.15s attack, 0.35s release, advanced once per frame.
@@ -130,25 +102,16 @@ final class LevelMeter {
 
 // MARK: - Window content
 
-struct DictationHUDView: View {
+/// The window's content: the pill with room for its shadow. It fades in with a
+/// small lift and fades out; that's the only motion besides the level meter.
+struct HUDContent: View {
     @ObservedObject var model: HUDModel
 
     var body: some View {
-        ZStack {
-            PillView(model: model)
-                .scaleEffect(model.pillScale)
-                .offset(model.pillOffset)
-                .opacity(model.pillOpacity)
-                .position(x: HUDMetrics.pillRect.midX, y: HUDMetrics.pillRect.midY)
-
-            model.fox.makeView(size: HUDMetrics.foxSlotSize)
-                .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
-                .modifier(OrbitRunner(progress: model.runnerProgress))
-                .opacity(model.runnerOpacity)
-                .allowsHitTesting(false)
-        }
-        .frame(width: HUDMetrics.windowSize.width, height: HUDMetrics.windowSize.height)
-        .coordinateSpace(name: "hud")
+        PillView(model: model)
+            .opacity(model.isShown ? 1 : 0)
+            .offset(y: model.isShown || model.reduceMotion ? 0 : 8)
+            .frame(width: HUDWindowMetrics.size.width, height: HUDWindowMetrics.size.height)
     }
 }
 
@@ -158,15 +121,8 @@ struct PillView: View {
     var body: some View {
         let state = model.state
         HStack(spacing: 12) {
-            FoxFaceView(fox: model.fox, paused: !model.isVisible)
+            FoxFace()
                 .frame(width: PillMetrics.faceSize, height: PillMetrics.faceSize)
-                .background(GeometryReader { proxy in
-                    let frame = proxy.frame(in: .named("hud"))
-                    let _ = (model.measuredSlotCenter = CGPoint(x: frame.midX, y: frame.midY))
-                    Color.clear
-                })
-                .scaleEffect(model.slotScale)
-                .opacity(model.slotOpacity)
 
             HStack(spacing: 6) {
                 Text(model.label)
@@ -188,10 +144,10 @@ struct PillView: View {
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(model.contentOpacity)
+            
 
             ZStack {
-                WaveformView(meter: model.meter, state: state, paused: !model.isVisible)
+                WaveformView(meter: model.meter, state: state, paused: !model.isShown)
                     .frame(width: WaveformView.width, height: WaveformView.maxHeight)
                     .opacity(state.showsWaveform && model.waveformStarted ? 1 : 0)
                 Image(systemName: "checkmark.circle.fill")
@@ -206,7 +162,7 @@ struct PillView: View {
             }
             .frame(width: model.actionTitle == nil ? WaveformView.width : 0)
             .clipped()
-            .opacity(model.contentOpacity)
+            
 
             if let action = model.actionTitle {
                 Button { model.onAction?() } label: {
@@ -218,7 +174,7 @@ struct PillView: View {
                         .background(Capsule().fill(Color.white.opacity(0.16)))
                 }
                 .buttonStyle(.plain)
-                .opacity(model.contentOpacity)
+                
             }
 
             Button { model.onClose?() } label: {
@@ -230,7 +186,7 @@ struct PillView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Cancel dictation (esc)")
-            .opacity(model.contentOpacity * (state.showsClose ? 1 : 0))
+            .opacity(state.showsClose ? 1 : 0)
             .frame(width: state.showsClose ? nil : 0)
             .clipped()
         }
@@ -271,70 +227,20 @@ struct PillView: View {
     }
 }
 
-/// The seated fox: the face bitmap with a little state motion on top.
-/// Listening bobs, processing tilts slowly, success hops once, error droops.
-struct FoxFaceView: View {
+/// The fox's face, still.
+struct FoxFace: View {
     static let image: NSImage? = {
         guard let url = Bundle.main.url(forResource: "face", withExtension: "png", subdirectory: "Fox") else { return nil }
         return NSImage(contentsOf: url)
     }()
 
-    let fox: VectorFoxAnimator
-    var paused: Bool
-
     var body: some View {
-        TimelineView(.animation(paused: paused)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            let since = context.date.timeIntervalSince(fox.changedAt)
-            let motion = Self.motion(fox.state, time: t, since: since, still: fox.reduceMotion)
-            Group {
-                if let image = Self.image {
-                    Image(nsImage: image).resizable().interpolation(.high)
-                } else {
-                    Color.clear
-                }
-            }
-            .scaleEffect(x: motion.scaleX, y: motion.scaleY, anchor: .bottom)
-            .rotationEffect(.degrees(motion.rotation), anchor: .bottom)
-            .offset(y: motion.dy)
-            .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+        if let image = Self.image {
+            Image(nsImage: image).resizable().interpolation(.high)
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+        } else {
+            Color.clear
         }
-    }
-
-    struct Motion {
-        var dy: CGFloat = 0
-        var rotation: Double = 0
-        var scaleX: CGFloat = 1
-        var scaleY: CGFloat = 1
-    }
-
-    static func motion(_ state: FoxState, time t: Double, since: Double, still: Bool) -> Motion {
-        if still { return Motion() }
-        var m = Motion()
-        switch state {
-        case .listen:
-            let phase = sin(2 * .pi * t / 1.2)
-            m.dy = CGFloat(-1.2 * phase)
-            m.rotation = 2 * sin(2 * .pi * t / 2.4)
-            m.scaleY = 1 + CGFloat(0.02 * phase)
-        case .think:
-            m.rotation = 6 * sin(2 * .pi * t / 3)
-        case .success:
-            // One 620ms hop with squash and stretch, then rest.
-            let p = min(1, max(0, since / 0.62))
-            if p < 1 {
-                m.dy = CGFloat(-7 * sin(.pi * p))
-                let stretch = sin(.pi * p) * (p < 0.5 ? 0.07 : -0.06)
-                m.scaleY = 1 + CGFloat(stretch)
-                m.scaleX = 1 - CGFloat(stretch * 0.6)
-            }
-        case .error:
-            m.dy = 1.5
-            m.rotation = -4
-        case .idle:
-            m.dy = CGFloat(-0.6 * sin(2 * .pi * t / 3.4))
-        }
-        return m
     }
 }
 

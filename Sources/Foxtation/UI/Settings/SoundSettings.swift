@@ -10,13 +10,8 @@ struct SoundSettings: View {
                     FXSwitch(isOn: model.setting(\.playSounds))
                 }
                 RowDivider()
-                SettingRow(title: "Floating indicator", detail: "The pill that shows while you dictate.") {
-                    HStack(spacing: 10) {
-                        MenuPicker(selection: model.setting(\.hudPlacement),
-                                   items: HUDPlacement.allCases.map { ($0, $0.label) })
-                            .disabled(!model.settings.showHUD)
-                        FXSwitch(isOn: model.setting(\.showHUD))
-                    }
+                SettingRow(title: "Floating indicator", detail: "The pill at the bottom of the screen while you dictate.") {
+                    FXSwitch(isOn: model.setting(\.showHUD))
                 }
             }
 

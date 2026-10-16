@@ -48,7 +48,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installStatusItem()
         wireRecorder()
         hud.onCancel = { [weak self] in self?.cancelTranscription() }
-        hud.placement = settings.hudPlacement
         registerHotKey()
         rightOption.onPress = { [weak self] in self?.rightOptionPressed() }
         rightOption.onRelease = { [weak self] in self?.rightOptionReleased() }
@@ -552,7 +551,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         registerHotKey()
         applyRightOption()
         wireRecorder()
-        hud.placement = settings.hudPlacement
         refreshStatusItem()
         applyLaunchAtLogin()
     }
