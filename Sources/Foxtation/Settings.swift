@@ -30,9 +30,31 @@ enum TranscriptionEngine: String, CaseIterable {
     }
 }
 
+/// How long dictations stay in the local history.
+enum HistoryRetention: String, CaseIterable {
+    case days30, days7, forever, off
+    var label: String {
+        switch self {
+        case .days30: return "30 days"
+        case .days7: return "7 days"
+        case .forever: return "Forever"
+        case .off: return "Don’t keep"
+        }
+    }
+    /// nil keeps everything.
+    var days: Int? {
+        switch self {
+        case .days30: return 30
+        case .days7: return 7
+        case .forever: return nil
+        case .off: return 0
+        }
+    }
+}
+
 /// Single source of truth for user preferences. Every property persists to
 /// UserDefaults on write and notifies `onChange` so open UI stays in sync.
-final class Settings {
+final class Settings: ObservableObject {
 
     static let shared = Settings()
 
@@ -73,6 +95,17 @@ final class Settings {
     var licenseKey: String { didSet { persist("licenseKey", licenseKey) } }
     /// Set once this Mac is activated against `licenseKey`.
     var activationID: String { didSet { persist("activationID", activationID) } }
+    var activatedAt: Double { didSet { persist("activatedAt", activatedAt) } }
+    /// Double-tap right ⌥ keeps recording until the next tap.
+    var handsFree: Bool { didSet { persist("handsFree", handsFree) } }
+    /// Off: the target app's name is not sent to Foxtation Cloud.
+    var shareAppName: Bool { didSet { persist("shareAppName", shareAppName) } }
+    var historyRetention: HistoryRetention { didSet { persist("historyRetention", historyRetention.rawValue) } }
+    var keepAudio: Bool { didSet { persist("keepAudio", keepAudio) } }
+    var hideDictionaryTip: Bool { didSet { persist("hideDictionaryTip", hideDictionaryTip) } }
+
+    /// Cloud cleanup is switched on and this Mac is activated.
+    var cloudReady: Bool { cloudCleanup && !activationID.isEmpty }
 
     private let d = UserDefaults.standard
 
@@ -102,6 +135,12 @@ final class Settings {
             "cloudCleanup": false,
             "licenseKey": "",
             "activationID": "",
+            "activatedAt": 0.0,
+            "handsFree": true,
+            "shareAppName": true,
+            "historyRetention": HistoryRetention.days30.rawValue,
+            "keepAudio": false,
+            "hideDictionaryTip": false,
         ])
 
         modelPath = d.string(forKey: "modelPath") ?? ""
@@ -128,6 +167,12 @@ final class Settings {
         cloudCleanup = d.bool(forKey: "cloudCleanup")
         licenseKey = d.string(forKey: "licenseKey") ?? ""
         activationID = d.string(forKey: "activationID") ?? ""
+        activatedAt = d.double(forKey: "activatedAt")
+        handsFree = d.bool(forKey: "handsFree")
+        shareAppName = d.bool(forKey: "shareAppName")
+        historyRetention = HistoryRetention(rawValue: d.string(forKey: "historyRetention") ?? "") ?? .days30
+        keepAudio = d.bool(forKey: "keepAudio")
+        hideDictionaryTip = d.bool(forKey: "hideDictionaryTip")
     }
 
     /// Off for the headless CLI, so its flags don't leak into the menu-bar app.
@@ -135,6 +180,7 @@ final class Settings {
 
     private func persist(_ key: String, _ value: Any) {
         guard persistsChanges else { return }
+        objectWillChange.send()
         d.set(value, forKey: key)
         onChange?()
     }
