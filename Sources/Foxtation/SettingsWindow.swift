@@ -83,6 +83,7 @@ final class SettingsContent: FillView {
         panes = [
             GeneralPane(settings: settings, onChange: onChange),
             EnginePane(settings: settings, onChange: onChange),
+            CloudPane(settings: settings),
             AdvancedPane(settings: settings, onChange: onChange),
         ]
         super.init(color: Palette.background)
@@ -101,10 +102,10 @@ final class SettingsContent: FillView {
 
         tabs.segmentStyle = .rounded
         tabs.trackingMode = .selectOne
-        tabs.segmentCount = 3
-        for (index, title) in ["General", "Engine", "Advanced"].enumerated() {
+        tabs.segmentCount = 4
+        for (index, title) in ["General", "Engine", "Cloud", "Advanced"].enumerated() {
             tabs.setLabel(title, forSegment: index)
-            tabs.setWidth(78, forSegment: index)
+            tabs.setWidth(70, forSegment: index)
         }
         tabs.selectedSegmentBezelColor = Palette.accent
         tabs.selectedSegment = 0
@@ -785,6 +786,78 @@ private final class CppModelRowView: NSView {
             store.download(descriptor)
         }
         onUpdate()
+    }
+}
+
+// MARK: - Cloud
+
+private final class CloudPane: Pane {
+
+    private let settings: Settings
+    private let cleanup = Toggle()
+    private let keyField = NSTextField()
+    private let status = label("", size: 12, weight: .medium)
+    private lazy var activate = accentButton("Activate", target: self, action: #selector(activatePressed))
+
+    init(settings: Settings) {
+        self.settings = settings
+        super.init()
+
+        cleanup.onToggle = { [weak self] on in self?.settings.cloudCleanup = on }
+
+        keyField.placeholderString = "License key"
+        keyField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        keyField.translatesAutoresizingMaskIntoConstraints = false
+        keyField.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        activate.controlSize = .small
+
+        let buy = NSButton(title: "Get a license…", target: self, action: #selector(buyPressed))
+        buy.controlSize = .small
+        buy.bezelStyle = .rounded
+
+        addArrangedSubview(card("Foxtation Cloud", [
+            Row("AI cleanup", detail: "Removes filler words, applies self-corrections, fixes punctuation", [cleanup]),
+            Row("License", detail: "From your Foxtation purchase", [keyField, activate]),
+            Row("Status", [status, buy]),
+        ]))
+        addArrangedSubview(label("Only the transcribed text is sent to the Foxtation server, never audio.",
+                                 size: 11, color: Palette.secondary))
+    }
+
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    override func reload() {
+        cleanup.isOn = settings.cloudCleanup
+        if keyField.currentEditor() == nil { keyField.stringValue = settings.licenseKey }
+        showStatus(settings.licenseKey.isEmpty ? "● No license" : "● Saved", good: !settings.licenseKey.isEmpty)
+    }
+
+    private func showStatus(_ text: String, good: Bool) {
+        status.stringValue = text
+        status.textColor = good ? Palette.good : Palette.bad
+    }
+
+    @objc private func activatePressed() {
+        let key = keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return }
+        showStatus("Checking…", good: true)
+        activate.isEnabled = false
+        Task { @MainActor in
+            defer { activate.isEnabled = true }
+            do {
+                try await CloudCleanup.checkLicense(key)
+                settings.licenseKey = key
+                settings.cloudCleanup = true
+                cleanup.isOn = true
+                showStatus("● Active", good: true)
+            } catch {
+                showStatus("● \(error.localizedDescription)", good: false)
+            }
+        }
+    }
+
+    @objc private func buyPressed() {
+        NSWorkspace.shared.open(CloudCleanup.buyURL)
     }
 }
 

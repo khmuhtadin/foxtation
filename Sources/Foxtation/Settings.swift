@@ -69,6 +69,8 @@ final class Settings {
     var maxSeconds: Double { didSet { persist("maxSeconds", maxSeconds) } }
     var initialPrompt: String { didSet { persist("initialPrompt", initialPrompt) } }
     var whisperBinary: String { didSet { persist("whisperBinary", whisperBinary) } }
+    var cloudCleanup: Bool { didSet { persist("cloudCleanup", cloudCleanup) } }
+    var licenseKey: String { didSet { persist("licenseKey", licenseKey) } }
 
     private let d = UserDefaults.standard
 
@@ -95,6 +97,8 @@ final class Settings {
             "maxSeconds": 120.0,
             "initialPrompt": "",
             "whisperBinary": "",
+            "cloudCleanup": false,
+            "licenseKey": "",
         ])
 
         modelPath = d.string(forKey: "modelPath") ?? ""
@@ -118,6 +122,8 @@ final class Settings {
         maxSeconds = d.double(forKey: "maxSeconds")
         initialPrompt = d.string(forKey: "initialPrompt") ?? ""
         whisperBinary = d.string(forKey: "whisperBinary") ?? ""
+        cloudCleanup = d.bool(forKey: "cloudCleanup")
+        licenseKey = d.string(forKey: "licenseKey") ?? ""
     }
 
     /// Off for the headless CLI, so its flags don't leak into the menu-bar app.

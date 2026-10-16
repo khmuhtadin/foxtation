@@ -6,7 +6,7 @@
 
 <p align="center">
   Local voice dictation for macOS. Hold a key, speak, and a little fox types it for you.<br>
-  Everything runs on your Mac — no audio, text or telemetry ever leaves it.
+  Transcription runs on your Mac — no audio or telemetry ever leaves it.
 </p>
 
 <p align="center">
@@ -77,9 +77,17 @@ Switch in **Settings › Engine**.
 
 MLX keeps the model loaded in a background worker, so its load time is paid once. whisper.cpp starts fresh for every clip — quicker for very short ones, slower as clips get longer. Measured on an M4 with 16 GB.
 
+## Foxtation Cloud
+
+Optional, paid. **Settings › Cloud › AI cleanup** turns the raw transcript into what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, tone matched to the app you're typing in. Mixed Indonesian and English stays mixed.
+
+Get a license key from the [Foxtation store](https://polar.sh/khmuhtadin), paste it into **Settings › Cloud** and press **Activate**.
+
 ## Privacy
 
-Audio is recorded to a temporary file, transcribed locally and deleted. Nothing is sent anywhere. Model weights are downloaded once from Hugging Face; after that Foxtation works offline.
+Audio is recorded to a temporary file, transcribed locally and deleted. Model weights are downloaded once from Hugging Face; after that Foxtation works offline.
+
+With Foxtation Cloud switched on, the transcribed text (never audio) and the name of the app you're dictating into are sent to the Foxtation server for cleanup. With it off, nothing is sent anywhere.
 
 ## Command line
 

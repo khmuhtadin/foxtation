@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var phase: Phase = .idle
     private var currentCapture: URL?
     private var lastTranscript: String?
+    /// The app the user is dictating into, captured when recording starts.
+    private var targetApp: String?
     /// Bumped on every finish/cancel so a stale transcription result is dropped.
     private var session = 0
     private var registeredHotKey: (code: UInt32, modifiers: UInt32)?
@@ -217,6 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         wireRecorder()
+        targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
         do {
             try recorder.start()
             phase = .recording
@@ -261,7 +264,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer { try? FileManager.default.removeItem(at: capture) }
 
             do {
-                let transcript = try await self.transcribe(audio: capture)
+                let raw = try await self.transcribe(audio: capture)
+                let transcript: Transcript
+                do {
+                    transcript = try await self.cleanUp(raw)
+                } catch {
+                    // Nothing is pasted, but the raw text stays reachable through Copy Last.
+                    await MainActor.run {
+                        guard self.session == mySession else { return }
+                        self.currentCapture = nil
+                        self.phase = .idle
+                        self.lastTranscript = raw.text
+                        self.refreshStatusItem()
+                        self.hud.show(.error(error.localizedDescription + " — raw text in Copy Last"))
+                    }
+                    return
+                }
                 await MainActor.run {
                     guard self.session == mySession else { return }  // cancelled meanwhile
                     self.currentCapture = nil
@@ -314,6 +332,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .whisperCpp:
             return try await Transcriber.transcribe(audio: audio, settings: settings)
         }
+    }
+
+    /// Foxtation Cloud cleanup when it's switched on and licensed; otherwise the raw transcript.
+    private func cleanUp(_ transcript: Transcript) async throws -> Transcript {
+        guard settings.cloudCleanup, !settings.licenseKey.isEmpty, !transcript.text.isEmpty else { return transcript }
+        var cleaned = transcript
+        cleaned.text = try await CloudCleanup.clean(transcript.text,
+                                                    language: transcript.language,
+                                                    app: targetApp,
+                                                    licenseKey: settings.licenseKey)
+        return cleaned
     }
 
     private func deliver(_ transcript: Transcript) {
