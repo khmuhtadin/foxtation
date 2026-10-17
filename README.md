@@ -24,7 +24,7 @@
 - **Hold to talk** — hold right <kbd>⌥</kbd>, speak, release. The text lands in whatever field has focus: editors, terminals, browsers, chat apps.
 - **Hands-free** — double-tap right <kbd>⌥</kbd> to keep listening, tap again to stop.
 - **Fast, on-device Whisper** — `whisper-large-v3-turbo` on the Neural Engine via WhisperKit, transcribing while you speak: text is ready about half a second after you let go.
-- **24 languages** — pick the ones you speak in **Settings › General**. Auto-detect only chooses among those, so a few seconds of Indonesian never come out as Malay or Tagalog, and two languages in one sentence stay mixed.
+- **23 languages** — pick the ones you speak in **Settings › General**. Auto-detect only chooses among those, so a few seconds of Indonesian never come out as Malay or Tagalog, and two languages in one sentence stay mixed.
 - **Stays out of the way** — a small pill at the bottom center of the screen, never steals focus, your clipboard is restored after pasting.
 - **Your words, your way** — a personal dictionary (names, product terms, `btw → by the way` replacements per app), snippets you drop in by saying a cue, and a cleanup style per kind of app.
 - **See your progress** — Home shows today's dictations; Insights shows speaking speed, time saved, fixes, apps and your streak. History stays on your Mac.
@@ -81,7 +81,7 @@ Switch in **Settings › Engine**. Times are from releasing the key to having th
 | 4–11 s clip | **0.35–0.7 s** | ~1.3–2.7 s | ~2.8–3.1 s |
 | 26 s clip | **0.5 s** | ~1.6–2.9 s | ~3.6 s |
 
-WhisperKit keeps the model loaded and transcribes each stretch of speech at the pauses while you're still talking, so after you let go only the last few words are left. MLX keeps its model in a background worker; whisper.cpp starts fresh for every clip.
+WhisperKit keeps the model loaded and transcribes each stretch of speech at the pauses while you're still talking, so after you let go only the last few words are left. Auto detect only chooses among the languages you speak; see the [0.3.0 release notes](docs/release-notes/0.3.0.md#accuracy) for error rates per language. MLX keeps its model in a background worker; whisper.cpp starts fresh for every clip.
 
 With Foxtation Cloud on, cleanup adds about 1.0–1.2 s. Only a short phrase (up to 4 words) with nothing to fix is pasted right away: Whisper already punctuates, and Foxtation applies the simple style rules and your dictionary's spellings itself (**Settings › Cloud cleanup › Skip when there's nothing to fix**, on by default). Anything longer goes to the cloud, because a misheard word can't be spotted on the Mac.
 

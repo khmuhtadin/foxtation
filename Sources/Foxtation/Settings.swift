@@ -65,7 +65,7 @@ final class Settings: ObservableObject {
         ("pt", "Portuguese"), ("nl", "Dutch"), ("sv", "Swedish"), ("da", "Danish"),
         ("no", "Norwegian"), ("fi", "Finnish"), ("pl", "Polish"), ("tr", "Turkish"),
         ("ru", "Russian"), ("ja", "Japanese"), ("ko", "Korean"), ("zh", "Chinese"),
-        ("ar", "Arabic"), ("he", "Hebrew"), ("hi", "Hindi"), ("th", "Thai"),
+        ("ar", "Arabic"), ("hi", "Hindi"), ("th", "Thai"),
         ("vi", "Vietnamese"),
     ]
 
