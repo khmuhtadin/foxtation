@@ -196,7 +196,9 @@ final class EnginePane: Pane {
     private var wkCard: NSView!
     private var mlxCard: NSView!
     private var cppCard: NSView!
+    private var wkRow: Row!
     private let wkStatus = label("", size: 12, weight: .medium)
+    private let wkProgress = NSProgressIndicator()
     private lazy var wkButton = accentButton("Download", target: self, action: #selector(installWhisperKit))
     private var mlxRows: [MLXModelRowView] = []
     private var cppRows: [CppModelRowView] = []
@@ -223,9 +225,14 @@ final class EnginePane: Pane {
         addArrangedSubview(card(nil, [Row("Engine", detail: "WhisperKit is fastest: it transcribes while you speak", [engineControl])], width: width))
 
         wkButton.controlSize = .small
-        wkCard = card("WhisperKit model", [
-            Row("Whisper large-v3 turbo", detail: "Neural Engine · 1.5 GB download · set up once, about a minute", [wkStatus, wkButton]),
-        ], width: width)
+        wkProgress.style = .bar
+        wkProgress.minValue = 0
+        wkProgress.maxValue = 1
+        wkProgress.controlSize = .small
+        wkProgress.translatesAutoresizingMaskIntoConstraints = false
+        wkProgress.widthAnchor.constraint(equalToConstant: 90).isActive = true
+        wkRow = Row("Whisper large-v3 turbo", detail: "", [wkProgress, wkStatus, wkButton])
+        wkCard = card("WhisperKit model", [wkRow], width: width)
         addArrangedSubview(wkCard)
         WhisperKitEngine.shared.onStateChange = { [weak self] in self?.reload() }
 
@@ -241,7 +248,7 @@ final class EnginePane: Pane {
             if on { MLXEngine.shared.preload(repo: self.settings.mlxModel) } else { MLXEngine.shared.unload() }
             self.onChange()
         }
-        mlxCard = card("MLX models", [Row("Python runtime", [runtimeStatus, setupButton])] + mlxRows
+        mlxCard = card("MLX models", [Row("Python runtime", detail: "About 200 MB · needs uv: brew install uv", [runtimeStatus, setupButton])] + mlxRows
             + [Row("Keep model in memory", detail: "Instant start, uses about 1.6 GB", [keepLoaded])], width: width)
         addArrangedSubview(mlxCard)
 
@@ -262,15 +269,19 @@ final class EnginePane: Pane {
 
         switch WhisperKitEngine.shared.state {
         case .notInstalled:
-            showWhisperKit("● Not installed", Palette.bad, button: "Download")
+            showWhisperKit("● Not installed", Palette.bad, button: "Download",
+                           detail: "1.6 GB download, then a one-time setup of about a minute")
         case .downloading(let progress):
-            showWhisperKit("Downloading \(Int(progress * 100))%", Palette.secondary, button: nil)
+            showWhisperKit("\(Int(progress * 100))%", Palette.secondary, button: nil, progress: progress,
+                           detail: String(format: "Downloading %.1f of 1.6 GB", progress * 1.6))
         case .loading:
-            showWhisperKit("Preparing…", Palette.secondary, button: nil)
+            showWhisperKit("Preparing…", Palette.secondary, button: nil, progress: -1,
+                           detail: "Setting up for the Neural Engine, about a minute the first time")
         case .ready:
-            showWhisperKit("● Ready", Palette.good, button: nil)
-        case .failed:
-            showWhisperKit("● Failed", Palette.bad, button: "Retry")
+            showWhisperKit("● Ready", Palette.good, button: nil,
+                           detail: "On this Mac and ready to dictate")
+        case .failed(let message):
+            showWhisperKit("● Failed", Palette.bad, button: "Retry", detail: message)
         }
 
         if runtime.isBusy {
@@ -318,11 +329,19 @@ final class EnginePane: Pane {
         reload()
     }
 
-    private func showWhisperKit(_ status: String, _ color: NSColor, button: String?) {
+    /// `progress` 0...1 fills the bar, -1 animates it, nil hides it.
+    private func showWhisperKit(_ status: String, _ color: NSColor, button: String?,
+                                progress: Double? = nil, detail: String) {
         wkStatus.stringValue = status
         wkStatus.textColor = color
         wkButton.isHidden = button == nil
         if let button { wkButton.title = button }
+        wkRow.detailLabel.stringValue = detail
+        wkRow.detailLabel.isHidden = false
+        wkProgress.isHidden = progress == nil
+        wkProgress.isIndeterminate = progress == -1
+        if progress == -1 { wkProgress.startAnimation(nil) } else { wkProgress.stopAnimation(nil) }
+        wkProgress.doubleValue = progress ?? 0
     }
 
     @objc private func installWhisperKit() {

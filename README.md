@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://foxtation.khaisa.studio">foxtation.khaisa.studio</a>
+</p>
+
+<p align="center">
   <img src="docs/readme/states.png" width="460" alt="The Foxtation pill: listening, transcribing, pasted">
 </p>
 
@@ -44,13 +48,13 @@ brew install --cask khmuhtadin/tap/foxtation
    xattr -dr com.apple.quarantine /Applications/Foxtation.app
    ```
 
-The MLX engine also needs [uv](https://docs.astral.sh/uv/) (`brew install uv`). Homebrew installs it for you.
+The default engine needs nothing else. Only the optional MLX engine needs [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 
 ## First run
 
-1. Look for the fox in the menu bar and open **Settings…**.
-2. **Engine** — press **Set Up** to create the MLX runtime (about 200 MB), then download a model. *Large v3 Turbo* is the default.
-3. **General › Permissions** — allow **Microphone**, then **Accessibility**. Accessibility is what lets Foxtation paste into other apps.
+1. Open Foxtation. The fox appears in the menu bar and, the first time, the window opens at **Settings › Engine**.
+2. Press **Download** next to *Whisper large-v3 turbo*. It's a 1.6 GB download from Hugging Face, followed by a one-time preparation for the Neural Engine that takes about a minute. The row shows the progress and turns **Ready** when you can dictate.
+3. Allow **Accessibility** when macOS asks (it's what lets Foxtation paste into other apps), and **Microphone** the first time you dictate. Both are also in **Settings › General › Permissions**.
 
 ## Usage
 
@@ -72,8 +76,8 @@ Switch in **Settings › Engine**. Times are from releasing the key to having th
 | | WhisperKit (default) | MLX Whisper | whisper.cpp |
 |---|---|---|---|
 | Runs on | Neural Engine via [WhisperKit](https://github.com/argmaxinc/WhisperKit) | Apple GPU via [MLX](https://github.com/ml-explore/mlx) | CPU/GPU via [whisper.cpp](https://github.com/ggml-org/whisper.cpp) |
-| Model | Large v3 Turbo (1.5 GB) | Large v3 Turbo, 4-bit, Small, Base, Tiny | ggml `.bin` files |
-| Install | **Download** in the app; the first load prepares it for the Neural Engine (about a minute, once) | from the app (needs `uv`) | `brew install whisper-cpp` |
+| Model | Large v3 Turbo (1.6 GB) | Large v3 Turbo, 4-bit, Small, Base, Tiny | ggml `.bin` files |
+| Install | **Download** in the app; the first load prepares it for the Neural Engine (about a minute, once) | **Set Up** in the app (needs `uv`), then download a model | `brew install whisper-cpp` |
 | 4–11 s clip | **0.35–0.7 s** | ~1.3–2.7 s | ~2.8–3.1 s |
 | 26 s clip | **0.5 s** | ~1.6–2.9 s | ~3.6 s |
 
@@ -81,11 +85,11 @@ WhisperKit keeps the model loaded and transcribes each stretch of speech at the 
 
 With Foxtation Cloud on, a dictation that needs cleanup (filler words, self-corrections, a list, spoken emoji, or the Rapi style) adds about 1.0–1.2 s. A clean one is pasted right away: Whisper already punctuates, and Foxtation applies the simple style rules and your dictionary's spellings itself (**Settings › Cloud cleanup › Skip when there's nothing to fix**, on by default).
 
-## Foxtation Cloud
+## Foxtation Pro
 
-Optional, paid. With **Cloud cleanup** on, the raw transcript becomes what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, your dictionary spelled right, and the tone you picked in **Style** for that app. Mixed Indonesian and English stays mixed.
+Optional, paid. A Foxtation Pro license turns on Foxtation Cloud cleanup. With **Cloud cleanup** on, the raw transcript becomes what you meant to type: filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, your dictionary spelled right, and the tone you picked in **Style** for that app. Mixed Indonesian and English stays mixed.
 
-Get a license key from the [Foxtation store](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C), open **Settings › License**, paste it and press **Activate**. Each key works on up to 3 Macs and includes 500 cleanups a day. If cleanup can't run (daily limit, offline, license), dictation still pastes the raw transcript.
+[Buy Foxtation Pro](https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C) to get a license key, open **Settings › License**, paste it and press **Activate**. Each key works on up to 3 Macs and includes 500 cleanups a day. If cleanup can't run (daily limit, offline, license), dictation still pastes the raw transcript.
 
 ## Privacy
 
@@ -103,7 +107,7 @@ The app binary can transcribe a file without opening the UI:
 /Applications/Foxtation.app/Contents/MacOS/Foxtation --transcribe clip.wav --language id
 ```
 
-Options: `--engine mlx|cpp`, `--model <name or path>`, `--language <code>`, `--translate`, `--prompt <text>`. The transcript goes to stdout.
+Options: `--engine wk|mlx|cpp` (default: the engine picked in Settings), `--model <name or path>`, `--language <code>`, `--translate`, `--prompt <text>`. The transcript goes to stdout.
 
 Add `--cleanup --app <bundle id>` to run the whole dictation pipeline as if you'd dictated into that app — Foxtation Cloud (with your style for that app), then replacements and snippets — and print each stage instead of pasting. `--sample-library` uses a sample dictionary instead of yours. Handy with `say -v Damayanti -o clip.wav --data-format=LEI16@16000 "…"`.
 

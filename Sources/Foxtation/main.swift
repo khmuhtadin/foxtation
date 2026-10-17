@@ -7,7 +7,7 @@ func runHeadlessIfRequested() -> Bool {
     let arguments = CommandLine.arguments
     guard let flagIndex = arguments.firstIndex(of: "--transcribe") else { return false }
     guard flagIndex + 1 < arguments.count else {
-        FileHandle.standardError.write(Data("usage: Foxtation --transcribe file.wav [--engine mlx|cpp] [--model M] [--language L] [--translate] [--prompt P] [--cleanup [--app BUNDLE_ID] [--sample-library]]\n".utf8))
+        FileHandle.standardError.write(Data("usage: Foxtation --transcribe file.wav [--engine wk|mlx|cpp] [--model M] [--language L] [--translate] [--prompt P] [--cleanup [--app BUNDLE_ID] [--sample-library]]\n".utf8))
         exit(2)
     }
     let audio = URL(fileURLWithPath: arguments[flagIndex + 1])

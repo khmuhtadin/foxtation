@@ -8,13 +8,14 @@
    scripts/make-dmg.sh
    ```
 
-3. Commit, tag and publish the release with the DMG attached:
+3. Write the release notes in `docs/release-notes/<version>.md`. Commit, tag and
+   publish the release with the DMG attached:
 
    ```sh
    git commit -am "Release 0.2.0"
    git tag v0.2.0
    git push origin main v0.2.0
-   gh release create v0.2.0 dist/Foxtation-0.2.0.dmg --title "Foxtation 0.2.0" --generate-notes
+   gh release create v0.2.0 dist/Foxtation-0.2.0.dmg --title "Foxtation 0.2.0" --notes-file docs/release-notes/0.2.0.md
    ```
 
 4. Update the tap. Copy `packaging/homebrew/foxtation.rb` to `Casks/foxtation.rb`
