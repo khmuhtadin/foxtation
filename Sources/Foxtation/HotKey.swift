@@ -8,6 +8,12 @@ import Carbon.HIToolbox
 final class HotKey {
 
     /// Default: ⌃⌥⌘D — unlikely to collide with anything.
+    /// A dictation shortcut needs ⌃ or ⌥: ⌘ alone (⌘V, ⌘C, ⌘Z…) or ⇧⌘ belongs to
+    /// every app, and a global hot key on it would swallow pasting everywhere.
+    static func isAllowed(modifiers: UInt32) -> Bool {
+        modifiers & UInt32(controlKey | optionKey) != 0
+    }
+
     static let defaultKeyCode = UInt32(kVK_ANSI_D)
     static let defaultModifiers = UInt32(controlKey | optionKey | cmdKey)
 

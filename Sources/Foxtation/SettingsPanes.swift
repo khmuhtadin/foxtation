@@ -705,8 +705,8 @@ final class RecorderButton: NSView {
             window?.makeFirstResponder(nil)
             return
         }
-        // Shift alone would hijack ordinary typing (⇧A = capital A) system-wide.
-        guard carbon & UInt32(cmdKey | optionKey | controlKey) != 0 else { NSSound.beep(); return }
+        // Plain or ⇧ keys would hijack typing, and ⌘ alone (⌘V, ⌘C…) every app's shortcuts.
+        guard HotKey.isAllowed(modifiers: carbon) else { NSSound.beep(); return }
 
         code = UInt32(event.keyCode)
         mods = carbon

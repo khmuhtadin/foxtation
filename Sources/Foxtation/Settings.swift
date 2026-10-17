@@ -145,6 +145,13 @@ final class Settings: ObservableObject {
         triggerMode = TriggerMode(rawValue: d.string(forKey: "triggerMode") ?? "") ?? .toggle
         hotKeyCode = UInt32(d.integer(forKey: "hotKeyCode"))
         hotKeyModifiers = UInt32(d.integer(forKey: "hotKeyModifiers"))
+        // A stored ⌘-only shortcut (e.g. ⌘V) would swallow pasting in every app.
+        if !HotKey.isAllowed(modifiers: hotKeyModifiers) {
+            hotKeyCode = HotKey.defaultKeyCode
+            hotKeyModifiers = HotKey.defaultModifiers
+            d.set(Int(hotKeyCode), forKey: "hotKeyCode")
+            d.set(Int(hotKeyModifiers), forKey: "hotKeyModifiers")
+        }
         insertMethod = InsertMethod(rawValue: d.string(forKey: "insertMethod") ?? "") ?? .paste
         restoreClipboard = d.bool(forKey: "restoreClipboard")
         playSounds = d.bool(forKey: "playSounds")
