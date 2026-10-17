@@ -241,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let front = NSWorkspace.shared.frontmostApplication
         target = DictationTarget(name: front?.localizedName ?? "", bundleID: front?.bundleIdentifier ?? "")
         if settings.engine == .whisperKit {
-            let stream = WhisperKitEngine.Session(language: settings.language)
+            let stream = WhisperKitEngine.Session(language: settings.language, among: settings.spokenLanguages)
             self.stream = stream
             recorder.onSamples = { stream.append($0) }
         } else {
@@ -375,7 +375,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .whisperKit:
             let result = try await WhisperKitEngine.shared.transcribe(
                 try WhisperKitEngine.samples(of: audio),
-                language: settings.language == "auto" ? nil : settings.language)
+                language: settings.language == "auto" ? nil : settings.language,
+                among: settings.spokenLanguages)
             return Transcript(text: result.text, language: result.language, duration: 0)
         case .mlx:
             let response = try await MLXEngine.shared.transcribe(
@@ -520,14 +521,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(.separator())
         }
 
-        let current = Settings.languages.first { $0.code == settings.language }?.label ?? settings.language
+        let current = settings.language == "auto" ? "Auto" : Settings.label(for: settings.language)
         let languageItem = NSMenuItem(title: "Language: \(current)", action: nil, keyEquivalent: "")
         let languageMenu = NSMenu()
-        for language in Settings.languages {
-            let item = NSMenuItem(title: language.label, action: #selector(menuLanguage), keyEquivalent: "")
+        for code in ["auto"] + settings.spokenLanguages {
+            let item = NSMenuItem(title: code == "auto" ? "Auto" : Settings.label(for: code), action: #selector(menuLanguage), keyEquivalent: "")
             item.target = self
-            item.representedObject = language.code
-            item.state = language.code == settings.language ? .on : .off
+            item.representedObject = code
+            item.state = code == settings.language ? .on : .off
             languageMenu.addItem(item)
         }
         languageItem.submenu = languageMenu

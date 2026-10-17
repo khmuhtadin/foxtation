@@ -26,8 +26,11 @@ struct GeneralSettings: View {
                     .fxButton(.secondary, compact: true)
                 }
                 RowDivider()
-                SettingRow(title: "Dictation language", detail: "Auto detect keeps mixed speech mixed.") {
-                    MenuPicker(selection: model.setting(\.language), items: Settings.languages.map { ($0.code, $0.label) })
+                languagesRow
+                RowDivider()
+                SettingRow(title: "Dictation language", detail: "Auto picks among your languages and keeps mixed speech mixed.") {
+                    MenuPicker(selection: model.setting(\.language),
+                               items: [("auto", "Auto")] + model.settings.spokenLanguages.map { ($0, Settings.label(for: $0)) })
                 }
                 RowDivider()
                 SettingRow(title: "Translate to English", detail: "Paste English whatever language you speak.") {
@@ -80,6 +83,45 @@ struct GeneralSettings: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
+    }
+
+    /// The languages Foxtation listens for. Fewer to choose from means fewer
+    /// wrong guesses, so only the ones this person speaks.
+    private var languagesRow: some View {
+        let spoken = model.settings.spokenLanguages
+        let others = Settings.languages.filter { !spoken.contains($0.code) }
+        return VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Languages you speak").font(FXFont.body.weight(.medium)).foregroundStyle(Color.fxInk)
+                Text("Foxtation only listens for these, so it never mistakes yours for another.")
+                    .font(FXFont.detail).foregroundStyle(Color.fxSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            StyleFlowLayout(spacing: 6) {
+                ForEach(spoken, id: \.self) { code in
+                    Chip(text: Settings.label(for: code), onRemove: spoken.count > 1 ? { removeLanguage(code) } : nil)
+                }
+                Menu {
+                    ForEach(others, id: \.code) { language in
+                        Button(language.label) { model.settings.spokenLanguages.append(language.code) }
+                    }
+                } label: {
+                    Text("Add language…").font(FXFont.detail.weight(.medium)).foregroundStyle(Color.fxAccent)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .frame(height: 26)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func removeLanguage(_ code: String) {
+        model.settings.spokenLanguages.removeAll { $0 == code }
+        if model.settings.language == code { model.settings.language = "auto" }
     }
 
     private func permissionRow(_ title: String, detail: String, granted: Bool, grant: @escaping () -> Void) -> some View {

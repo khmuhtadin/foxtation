@@ -91,7 +91,8 @@ struct CleanupReply: Decodable {
 enum CloudCleanup {
 
     static let server = URL(string: "https://foxtation.khaisa.studio")!
-    static let buyURL = URL(string: "https://buy.polar.sh/polar_cl_pGAbwRd3v6HXPARELwKUmTJlleM9LQDteqWRq41Bn7C")!
+    /// The plans (monthly or yearly) are on the website, so prices can change without an update.
+    static let buyURL = URL(string: "https://foxtation.khaisa.studio/#pro")!
     static let portalURL = URL(string: "https://polar.sh/khaisa-studios/portal")!
 
     // Server-side caps; the app trims to them before sending.

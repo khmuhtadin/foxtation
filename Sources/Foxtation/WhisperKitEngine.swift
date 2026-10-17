@@ -29,7 +29,50 @@ final class WhisperKitEngine {
     /// WhisperKit isn't Sendable. One instance is shared and used one call at a time.
     final class Model: @unchecked Sendable {
         let kit: WhisperKit
-        init(_ kit: WhisperKit) { self.kit = kit }
+        /// The full tokenizer; `kit.tokenizer` may be a copy that detects fewer languages.
+        private let tokenizer: WhisperTokenizer?
+        private var detecting: [String] = []
+
+        init(_ kit: WhisperKit) {
+            self.kit = kit
+            tokenizer = kit.tokenizer
+        }
+
+        /// Makes language detection pick only from `languages` (empty: any of
+        /// Whisper's 99). Left to choose from all of them, a few seconds of
+        /// Indonesian come out as Malay, Tagalog or even Korean.
+        func detect(among languages: [String]) {
+            guard languages != detecting, let tokenizer, let old = kit.textDecoder as? TextDecoder else { return }
+            detecting = languages
+            // WhisperKit builds its language filter once per text decoder, so
+            // swap in a fresh decoder on the same Core ML model.
+            let fresh = TextDecoder()
+            fresh.model = old.model
+            fresh.isModelMultilingual = old.isModelMultilingual
+            fresh.logitsFilters = old.logitsFilters
+            kit.textDecoder = fresh
+            kit.tokenizer = languages.isEmpty ? tokenizer : DetectionTokenizer(tokenizer, languages: languages)
+        }
+    }
+
+    /// Whisper's tokenizer, except that only `languages` count as language tokens.
+    private final class DetectionTokenizer: WhisperTokenizer {
+        let base: WhisperTokenizer
+        let allLanguageTokens: Set<Int>
+
+        init(_ base: WhisperTokenizer, languages: [String]) {
+            self.base = base
+            allLanguageTokens = Set(languages.compactMap { base.convertTokenToId("<|\($0)|>") })
+        }
+
+        var specialTokens: SpecialTokens { base.specialTokens }
+        func encode(text: String) -> [Int] { base.encode(text: text) }
+        func decode(tokens: [Int]) -> String { base.decode(tokens: tokens) }
+        func convertTokenToId(_ token: String) -> Int? { base.convertTokenToId(token) }
+        func convertIdToToken(_ id: Int) -> String? { base.convertIdToToken(id) }
+        func splitToWordTokens(tokenIds: [Int]) -> (words: [String], wordTokens: [[Int]]) {
+            base.splitToWordTokens(tokenIds: tokenIds)
+        }
     }
 
     private let lock = NSLock()
@@ -129,22 +172,19 @@ final class WhisperKitEngine {
 
     // MARK: - Transcription
 
-    /// `language` nil detects it. `vocabulary` (dictionary words) biases
-    /// recognition toward those spellings. Returns the text and the language used.
-    func transcribe(_ samples: [Float], language: String?, vocabulary: [String] = []) async throws -> (text: String, language: String) {
-        let kit = try await load().kit
-        var options = DecodingOptions(task: .transcribe,
+    /// `language` nil detects it, choosing only from `languages` (empty: any).
+    /// Returns the text and the language used.
+    func transcribe(_ samples: [Float], language: String?, among languages: [String] = []) async throws -> (text: String, language: String) {
+        let model = try await load()
+        model.detect(among: languages)
+        let kit = model.kit
+        let options = DecodingOptions(task: .transcribe,
                                       language: language,
                                       temperature: 0,
                                       usePrefillPrompt: true,
                                       detectLanguage: language == nil,
                                       skipSpecialTokens: true,
                                       withoutTimestamps: true)
-        if !vocabulary.isEmpty, let tokenizer = kit.tokenizer {
-            // Whisper's prompt: earlier "context" it should stay consistent with.
-            options.promptTokens = tokenizer.encode(text: " " + vocabulary.prefix(60).joined(separator: ", "))
-                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
-        }
         let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)
         let text = results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         return (text, results.first?.language ?? language ?? "auto")
@@ -157,16 +197,15 @@ final class WhisperKitEngine {
 
     // MARK: - Transcribing while recording
 
-    /// Gets the recorder's 16 kHz samples as they arrive. At each pause of at
-    /// least 0.25 s after 3 s of audio it transcribes that stretch in the
-    /// background (one at a time, in order); `finish()` transcribes the tail and
-    /// joins everything.
+    /// Gets the recorder's 16 kHz samples as they arrive. At each pause after a
+    /// few seconds of audio it transcribes that stretch in the background (one
+    /// at a time, in order); `finish()` transcribes the tail and joins everything.
+    /// Stretches of 6 s or more, cut at real pauses, give Whisper whole phrases.
     final class Session {
         static let sampleRate = 16_000
         private static let frame = 1_600                 // 100 ms
-        private static let silenceDB: Float = -40
-        private static let minChunk = 3.0                // seconds before a cut is allowed
-        private static let pauseToCut = 0.25             // seconds of silence that end a chunk
+        private static let minChunk = 6.0                // seconds before a cut is allowed
+        private static let pauseToCut = 0.4              // seconds of silence that end a chunk
         private static let maxChunk = 25.0               // Whisper sees 30 s at a time
 
         private let engine: WhisperKitEngine
@@ -174,15 +213,18 @@ final class WhisperKitEngine {
         private var incoming: [Float] = []               // not yet a whole frame
         private var pending: [Float] = []                // since the last cut
         private var silence = 0.0
-        private var language: String?
-        private let vocabulary: [String]
+        private var levels: [Float] = []                 // dB of every frame so far
+        private let language: String?                   // nil: each chunk detects its own
+        private var detected: String?                   // the first chunk's, for the transcript
+        private let languages: [String]
         /// The chain of chunk transcriptions; each waits for the one before.
         private var last: Task<[String], Error>?
 
-        init(engine: WhisperKitEngine = .shared, language: String, vocabulary: [String] = []) {
+        /// `language` "auto" detects it among `languages`.
+        init(engine: WhisperKitEngine = .shared, language: String, among languages: [String]) {
             self.engine = engine
             self.language = language == "auto" ? nil : language
-            self.vocabulary = vocabulary
+            self.languages = languages
         }
 
         /// Any thread (the recorder calls it from the audio thread).
@@ -193,15 +235,16 @@ final class WhisperKitEngine {
         /// Transcribes what's left and returns the whole transcript.
         func finish() async throws -> Transcript {
             let started = Date()
-            let tail: [Float] = queue.sync {
+            let tail: [Float]? = queue.sync {
                 pending += incoming
                 incoming = []
-                return pending
+                return hasSpeech(pending) ? pending : nil
             }
-            if Self.hasSpeech(tail) { enqueue(tail) }
+            if let tail { enqueue(tail) }
             let parts = try await last?.value ?? []
             let text = parts.filter { !$0.isEmpty }.joined(separator: " ")
-            return Transcript(text: text, language: language ?? "auto", duration: Date().timeIntervalSince(started))
+            let used = language ?? queue.sync { detected } ?? "auto"
+            return Transcript(text: text, language: used, duration: Date().timeIntervalSince(started))
         }
 
         private func consume(_ samples: [Float]) {
@@ -210,14 +253,16 @@ final class WhisperKitEngine {
                 let frame = Array(incoming.prefix(Self.frame))
                 incoming.removeFirst(Self.frame)
                 pending += frame
-                silence = Self.decibels(frame) < Self.silenceDB ? silence + 0.1 : 0
+                let level = Self.decibels(frame)
+                levels.append(level)
+                silence = level < speechLevel() ? silence + 0.1 : 0
                 let seconds = Double(pending.count) / Double(Self.sampleRate)
                 if (silence >= Self.pauseToCut && seconds >= Self.minChunk) || seconds >= Self.maxChunk {
                     // Cut in the middle of the pause.
                     let cut = pending.count - Int(silence / 2 * Double(Self.sampleRate))
                     let chunk = Array(pending.prefix(cut))
                     pending.removeFirst(cut)
-                    if Self.hasSpeech(chunk) { enqueue(chunk) }
+                    if hasSpeech(chunk) { enqueue(chunk) }
                 }
             }
         }
@@ -226,10 +271,10 @@ final class WhisperKitEngine {
             let previous = last
             last = Task {
                 var parts = try await previous?.value ?? []
-                // The first chunk settles the language; later chunks reuse it.
-                let fixed = queue.sync { language }
-                let result = try await engine.transcribe(chunk, language: fixed, vocabulary: vocabulary)
-                queue.sync { if language == nil { language = result.language } }
+                // Each chunk detects its own language, so an English sentence
+                // after an Indonesian one isn't forced into Indonesian.
+                let result = try await engine.transcribe(chunk, language: language, among: languages)
+                queue.sync { if detected == nil { detected = result.language } }
                 parts.append(result.text)
                 return parts
             }
@@ -241,10 +286,24 @@ final class WhisperKitEngine {
             return 10 * log10(max(power, 1e-16))
         }
 
-        private static func hasSpeech(_ samples: [Float]) -> Bool {
-            stride(from: 0, to: max(0, samples.count - 480), by: 480).contains { start in
-                decibels(Array(samples[start..<start + 480])) > silenceDB
+        /// Louder than this is speech: 8 dB over the quietest tenth of what the
+        /// mic has heard (the room), kept between -75 and -35 dB. A fixed line
+        /// either cuts a quiet voice into "silence" or hears a noisy room as speech.
+        private func speechLevel() -> Float {
+            let heard = levels.filter { $0 > -100 }      // digital silence isn't the room
+            guard heard.count >= 5 else { return -50 }
+            let floor = heard.sorted()[heard.count / 10]
+            return min(max(floor + 8, -75), -35)
+        }
+
+        /// At least 0.2 s above the speech level. Whisper makes up words
+        /// ("Terima kasih.", "Thank you.") for a stretch of room noise.
+        private func hasSpeech(_ samples: [Float]) -> Bool {
+            let level = speechLevel()
+            let loud = stride(from: 0, to: max(0, samples.count - Self.frame + 1), by: Self.frame).filter { start in
+                Self.decibels(Array(samples[start..<start + Self.frame])) > level
             }
+            return loud.count >= 2
         }
     }
 }
