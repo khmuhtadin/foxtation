@@ -10,7 +10,7 @@ struct PrivacySettings: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "lock").foregroundStyle(Color.fxGood)
                 Text(model.settings.engine == .cloud
-                     ? "With Foxtation Cloud, your voice is sent to ElevenLabs or Groq to be transcribed, and the text to Foxtation Cloud for cleanup. Foxtation stores neither. Pick WhisperKit in Engine to keep your voice on this Mac."
+                     ? "With Foxtation Cloud, your voice is sent to Foxtation Cloud to be transcribed, and the text for cleanup. Foxtation stores neither. Pick WhisperKit in Engine to keep your voice on this Mac."
                      : "Your voice never leaves this Mac. Only the text transcript is sent to Foxtation Cloud for cleanup, and it isn’t stored after the reply.")
                     .font(FXFont.detail)
                     .foregroundStyle(Color.fxInk)

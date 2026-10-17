@@ -87,7 +87,7 @@ With Foxtation Cloud on, cleanup adds about 1.0–1.2 s. Only a short phrase (up
 
 ## Foxtation Pro
 
-Optional, paid: **$12 a month or $120 a year**. Pro transcribes in Foxtation Cloud, so there's **nothing to download**: activate and dictate. Each stretch of speech goes to ElevenLabs Scribe v2 while you talk (about half the errors of the on-device model in our tests), and to Whisper large-v3 after an hour a day, up to 3 hours. If the on-device model is installed, it takes over when you're offline.
+Optional, paid: **$12 a month or $120 a year**. Pro transcribes in Foxtation Cloud, so there's **nothing to download**: activate and dictate. Each stretch of speech is transcribed in the cloud while you talk (about half the errors of the on-device model in our tests), up to 3 hours a day. If the on-device model is installed, it takes over when you're offline.
 
 Pro also turns on Foxtation Cloud cleanup. With **Cloud cleanup** on, the raw transcript becomes what you meant to type: misheard words fixed ("batch kent cek kout" → "backend checkout"), filler words gone ("eh", "anu", "um"), self-corrections applied ("jam 3, eh jam 4" → "jam 4"), punctuation fixed, your dictionary spelled right, and the tone you picked in **Style** for that app. It keeps your language, and two languages in one sentence stay mixed.
 
@@ -97,7 +97,7 @@ Pro also turns on Foxtation Cloud cleanup. With **Cloud cleanup** on, the raw tr
 
 With the on-device engines, audio is recorded to a temporary file, transcribed locally and deleted. Model weights are downloaded once from Hugging Face; after that Foxtation works offline.
 
-With the **Cloud** engine (Pro), each stretch of speech is sent through the Foxtation server to ElevenLabs or Groq to be transcribed. Foxtation stores no audio; the providers handle it under their API terms.
+With the **Cloud** engine (Pro), each stretch of speech is sent to Foxtation Cloud to be transcribed. Foxtation stores no audio.
 
 With Foxtation Cloud switched on, the transcribed text (never audio), your dictionary words and snippet cues, and — unless you turn off **Share the app name** — the name of the app you're dictating into are sent to the Foxtation server for cleanup. Nothing is stored there except a daily counter. With cleanup off, nothing is sent anywhere.
 
