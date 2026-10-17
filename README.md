@@ -79,7 +79,7 @@ Switch in **Settings › Engine**. Times are from releasing the key to having th
 
 WhisperKit keeps the model loaded and transcribes each stretch of speech at the pauses while you're still talking, so after you let go only the last few words are left. MLX keeps its model in a background worker; whisper.cpp starts fresh for every clip.
 
-With Foxtation Cloud on, cleanup adds about 1.1–1.4 s on top.
+With Foxtation Cloud on, a dictation that needs cleanup (filler words, self-corrections, a list, spoken emoji, or the Rapi style) adds about 1.0–1.2 s. A clean one is pasted right away: Whisper already punctuates, and Foxtation applies the simple style rules and your dictionary's spellings itself (**Settings › Cloud cleanup › Skip when there's nothing to fix**, on by default).
 
 ## Foxtation Cloud
 
