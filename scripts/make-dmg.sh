@@ -23,6 +23,9 @@ DMG="dist/Foxtation-$VERSION.dmg"
 rm -f "$DMG"
 hdiutil create -quiet -volname "Foxtation" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 rm -rf "$STAGE"
+# The same image under a fixed name, attached to every release, so the website's
+# Download button (releases/latest/download/Foxtation.dmg) always gets the newest.
+cp "$DMG" dist/Foxtation.dmg
 
 SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
 sed -i '' -e "s/^  version \".*\"/  version \"$VERSION\"/" \
