@@ -109,7 +109,7 @@ enum UITest {
         // Style
         click(64, 218)
         click(973, 209)
-        step("Rapi card sets Chat to formal", library.groups[.chat]?.style == .formal)
+        step("Polished card sets Chat to formal", library.groups[.chat]?.style == .formal)
         click(455, 367)
         step("× removes WhatsApp from Chat", library.groups[.chat]?.apps.contains { $0.name == "WhatsApp" } == false)
         let emoji = library.spokenEmoji
