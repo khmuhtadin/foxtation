@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- The installer window's background (640×400). After changing it, render both sizes:
+       cd packaging/dmg && swift snap.swift background.html background@2x.png 640 400
+       sips -z 400 640 background@2x.png --out background.png
+     Icons sit at (170, 230) and (470, 230) (settings.py); Finder draws their names below. -->
+<html><head><meta charset="utf-8"><style>
+@font-face { font-family: "DM Sans"; src: url(fonts/dm-sans.woff2) format("woff2"); font-weight: 400 800; }
+@font-face { font-family: "Fraunces"; src: url(fonts/fraunces-italic.woff2) format("woff2"); font-style: italic; font-weight: 500 800; }
+html, body { margin: 0; width: 640px; height: 400px; overflow: hidden; }
+body { background: #6C7BFF; color: #151A33; font-family: "DM Sans"; position: relative; }
+.blob { position: absolute; border-radius: 50%; }
+.sun { width: 190px; height: 190px; background: #FFD66B; right: -90px; top: -120px; }
+.soft { width: 260px; height: 260px; background: #8592FF; left: -110px; bottom: -150px; }
+.halo { position: absolute; width: 150px; height: 150px; border-radius: 50%; background: rgba(255, 255, 255, .22); top: 155px; }
+.halo.app { left: 95px; }
+.halo.apps { left: 395px; }
+h1 { position: absolute; left: 0; right: 0; top: 34px; margin: 0; text-align: center; font-weight: 800; font-size: 31px; letter-spacing: -0.03em; }
+h1 em { font-family: "Fraunces"; font-style: italic; font-weight: 700; }
+p { position: absolute; left: 0; right: 0; margin: 0; text-align: center; }
+.sub { top: 80px; font-size: 16px; font-weight: 600; }
+.foot { bottom: 16px; font-size: 13px; font-weight: 600; }
+.key { display: inline-block; padding: 0 6px; border: 1.5px solid #151A33; border-bottom-width: 3px; border-radius: 6px; font-size: 13px; line-height: 18px; background: rgba(255, 255, 255, .5); }
+svg { position: absolute; left: 0; top: 0; }
+.tag { position: absolute; left: 262px; top: 122px; padding: 6px 14px; border-radius: 999px; background: #FFD66B; font-size: 15px; font-weight: 800; transform: rotate(-5deg); }
+</style></head><body>
+<div class="blob sun"></div>
+<div class="blob soft"></div>
+<div class="halo app"></div>
+<div class="halo apps"></div>
+<h1>Drag the fox into <em>Applications</em></h1>
+<p class="sub">Then open it from Applications and hold right <span class="key">⌥</span> to talk.</p>
+<svg width="640" height="400" viewBox="0 0 640 400">
+  <defs>
+    <!-- Drawn at the line's end and turned along it, so line and head always meet. -->
+    <marker id="head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4.4" markerHeight="4.4" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#151A33"/>
+    </marker>
+  </defs>
+  <!-- pathLength 100 with 6/4 dashes offset by 4: the line starts on a gap and ends on a dash. -->
+  <path d="M 252 218 C 296 158, 344 158, 384 208" fill="none" stroke="#151A33" stroke-width="5"
+        stroke-linecap="round" pathLength="100" stroke-dasharray="6 4" stroke-dashoffset="4" marker-end="url(#head)"/>
+</svg>
+<span class="tag">drag me →</span>
+<p class="foot">foxtation.khaisa.studio</p>
+</body></html>

@@ -1,8 +1,9 @@
 # Releasing
 
 1. Bump `CFBundleShortVersionString` (and `CFBundleVersion`) in `Resources/Info.plist`.
-2. Build the disk image. This also writes the new version and checksum into
-   `packaging/homebrew/foxtation.rb`:
+2. Build the disk image (needs `uv` for dmgbuild: `brew install uv`). The installer
+   window's look lives in `packaging/dmg/`. This also writes the new version and
+   checksum into `packaging/homebrew/foxtation.rb`:
 
    ```sh
    scripts/make-dmg.sh
