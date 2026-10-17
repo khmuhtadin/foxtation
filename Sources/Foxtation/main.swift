@@ -56,11 +56,14 @@ func runHeadlessIfRequested() -> Bool {
                 transcript = try await Transcriber.transcribe(audio: audio, settings: settings)
             case .whisperKit:
                 let samples = try WhisperKitEngine.samples(of: audio)
+                // Dictionary hints for Whisper cost ~0.3 s and drop punctuation;
+                // the pipeline fixes near-miss spellings locally instead.
+                let vocabulary: [String] = []
                 if arguments.contains("--realtime") {
-                    transcript = try await transcribeInRealTime(samples, language: settings.language)
+                    transcript = try await transcribeInRealTime(samples, language: settings.language, vocabulary: vocabulary)
                 } else {
                     let result = try await WhisperKitEngine.shared.transcribe(
-                        samples, language: settings.language == "auto" ? nil : settings.language)
+                        samples, language: settings.language == "auto" ? nil : settings.language, vocabulary: vocabulary)
                     transcript = Transcript(text: result.text, language: result.language, duration: 0)
                 }
             }
@@ -91,9 +94,9 @@ func runHeadlessIfRequested() -> Bool {
 
 /// `--realtime` (WhisperKit): feeds the clip at 1× speed in 100 ms buffers, as the
 /// recorder would, then "releases" and reports how long the text took after that.
-func transcribeInRealTime(_ samples: [Float], language: String) async throws -> Transcript {
+func transcribeInRealTime(_ samples: [Float], language: String, vocabulary: [String]) async throws -> Transcript {
     _ = try await WhisperKitEngine.shared.load()
-    let session = WhisperKitEngine.Session(language: language)
+    let session = WhisperKitEngine.Session(language: language, vocabulary: vocabulary)
     let step = 1_600
     let start = Date()
     for offset in stride(from: 0, to: samples.count, by: step) {
@@ -118,15 +121,17 @@ func printCleanup(of raw: Transcript, settings: Settings, bundleID: String, libr
                                                   licenseKey: settings.licenseKey, activationID: settings.activationID)
     FileHandle.standardError.write(Data(String(format: "cleanup=%.2fs\n", Date().timeIntervalSince(started)).utf8))
     print("raw:     \(raw.text)")
-    print("style:   \(request?.style?.rawValue ?? "-") (app: \(request?.app ?? "-"))")
+    print("style:   \(library.style(forBundleID: bundleID)?.rawValue ?? "-") (app: \(name.isEmpty ? "-" : name))")
     if let fallback = cleaned.fallback {
         print("cloud:   FALLBACK \(fallback)")
     } else if cleaned.cloud {
         print("cloud:   \(cleaned.text)")
+    } else if settings.cloudCleanup, !settings.activationID.isEmpty {
+        print("cloud:   skipped (nothing to fix)")
     } else {
         print("cloud:   off (cleanup disabled or not activated)")
     }
-    print("final:   \(DictationPipeline.finish(cleaned.text, target: target, library: library))")
+    print("final:   \(DictationPipeline.finish(cleaned.text, target: target, library: library, cloudStyled: cleaned.cloud))")
     if let changes = cleaned.changes {
         print("changes: fillers \(changes.fillersRemoved), self-corrections \(changes.selfCorrections), formatting \(changes.formattingFixes)")
     }

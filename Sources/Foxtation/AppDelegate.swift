@@ -334,7 +334,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
                 if let usage = cleanup.usage { self.cloud.usage = usage }
-                let text = DictationPipeline.finish(cleanup.text, target: target, library: self.library)
+                let text = DictationPipeline.finish(cleanup.text, target: target, library: self.library,
+                                                    cloudStyled: cleanup.cloud)
                 self.lastTranscript = text
                 self.refreshStatusItem()
                 // Undo only when the cloud changed the words, and keep the local steps.

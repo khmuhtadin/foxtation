@@ -91,6 +91,8 @@ final class Settings: ObservableObject {
     var initialPrompt: String { didSet { persist("initialPrompt", initialPrompt) } }
     var whisperBinary: String { didSet { persist("whisperBinary", whisperBinary) } }
     var cloudCleanup: Bool { didSet { persist("cloudCleanup", cloudCleanup) } }
+    /// Paste right away, without the cloud, when the transcript has nothing it would fix.
+    var skipCleanWhenNothingToFix: Bool { didSet { persist("skipCleanWhenNothingToFix", skipCleanWhenNothingToFix) } }
     var licenseKey: String { didSet { persist("licenseKey", licenseKey) } }
     /// Set once this Mac is activated against `licenseKey`.
     var activationID: String { didSet { persist("activationID", activationID) } }
@@ -125,6 +127,7 @@ final class Settings: ObservableObject {
             "initialPrompt": "",
             "whisperBinary": "",
             "cloudCleanup": false,
+            "skipCleanWhenNothingToFix": true,
             "licenseKey": "",
             "activationID": "",
             "shareAppName": true,
@@ -153,6 +156,7 @@ final class Settings: ObservableObject {
         initialPrompt = d.string(forKey: "initialPrompt") ?? ""
         whisperBinary = d.string(forKey: "whisperBinary") ?? ""
         cloudCleanup = d.bool(forKey: "cloudCleanup")
+        skipCleanWhenNothingToFix = d.bool(forKey: "skipCleanWhenNothingToFix")
         licenseKey = d.string(forKey: "licenseKey") ?? ""
         activationID = d.string(forKey: "activationID") ?? ""
         shareAppName = d.bool(forKey: "shareAppName")

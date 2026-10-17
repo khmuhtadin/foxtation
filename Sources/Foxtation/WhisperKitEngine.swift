@@ -101,16 +101,22 @@ final class WhisperKitEngine {
 
     // MARK: - Transcription
 
-    /// `language` nil detects it. Returns the text and the language used.
-    func transcribe(_ samples: [Float], language: String?) async throws -> (text: String, language: String) {
+    /// `language` nil detects it. `vocabulary` (dictionary words) biases
+    /// recognition toward those spellings. Returns the text and the language used.
+    func transcribe(_ samples: [Float], language: String?, vocabulary: [String] = []) async throws -> (text: String, language: String) {
         let kit = try await load().kit
-        let options = DecodingOptions(task: .transcribe,
+        var options = DecodingOptions(task: .transcribe,
                                       language: language,
                                       temperature: 0,
                                       usePrefillPrompt: true,
                                       detectLanguage: language == nil,
                                       skipSpecialTokens: true,
                                       withoutTimestamps: true)
+        if !vocabulary.isEmpty, let tokenizer = kit.tokenizer {
+            // Whisper's prompt: earlier "context" it should stay consistent with.
+            options.promptTokens = tokenizer.encode(text: " " + vocabulary.prefix(60).joined(separator: ", "))
+                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+        }
         let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)
         let text = results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         return (text, results.first?.language ?? language ?? "auto")
@@ -141,12 +147,14 @@ final class WhisperKitEngine {
         private var pending: [Float] = []                // since the last cut
         private var silence = 0.0
         private var language: String?
+        private let vocabulary: [String]
         /// The chain of chunk transcriptions; each waits for the one before.
         private var last: Task<[String], Error>?
 
-        init(engine: WhisperKitEngine = .shared, language: String) {
+        init(engine: WhisperKitEngine = .shared, language: String, vocabulary: [String] = []) {
             self.engine = engine
             self.language = language == "auto" ? nil : language
+            self.vocabulary = vocabulary
         }
 
         /// Any thread (the recorder calls it from the audio thread).
@@ -192,7 +200,7 @@ final class WhisperKitEngine {
                 var parts = try await previous?.value ?? []
                 // The first chunk settles the language; later chunks reuse it.
                 let fixed = queue.sync { language }
-                let result = try await engine.transcribe(chunk, language: fixed)
+                let result = try await engine.transcribe(chunk, language: fixed, vocabulary: vocabulary)
                 queue.sync { if language == nil { language = result.language } }
                 parts.append(result.text)
                 return parts

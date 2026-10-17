@@ -12,6 +12,11 @@ struct CloudSettings: View {
                     FXSwitch(isOn: model.setting(\.cloudCleanup))
                 }
                 RowDivider()
+                SettingRow(title: "Skip when there’s nothing to fix",
+                           detail: "Pastes right away when there are no filler words, self-corrections, lists or spoken emoji. Rapi style always uses the cloud.") {
+                    FXSwitch(isOn: model.setting(\.skipCleanWhenNothingToFix))
+                }
+                RowDivider()
                 if model.cloud.isActivated {
                     SettingRow(title: "Foxtation Cloud", detail: "Activated on this Mac.") {
                         StatusBadge(text: "Active", good: true)
