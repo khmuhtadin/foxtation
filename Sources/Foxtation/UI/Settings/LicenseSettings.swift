@@ -91,6 +91,8 @@ struct LicenseSettings: View {
                 model.settings.licenseKey = key
                 model.settings.activationID = activationID
                 model.settings.cloudCleanup = true
+                // Pro transcribes in the cloud: no 1.6 GB model to download.
+                model.settings.engine = .cloud
                 form.keyField = ""
                 await cloud.refresh()
             } catch {

@@ -207,6 +207,9 @@ final class EnginePane: Pane {
     private let width: CGFloat
 
     private let engineControl = NSSegmentedControl()
+    private var cloudCard: NSView!
+    private var cloudRow: Row!
+    private let cloudStatus = label("", size: 12, weight: .medium)
     private var wkCard: NSView!
     private var mlxCard: NSView!
     private var cppCard: NSView!
@@ -229,14 +232,19 @@ final class EnginePane: Pane {
 
         engineControl.segmentStyle = .rounded
         engineControl.trackingMode = .selectOne
-        engineControl.segmentCount = 3
-        engineControl.setLabel("WhisperKit", forSegment: 0)
-        engineControl.setLabel("MLX", forSegment: 1)
-        engineControl.setLabel("whisper.cpp", forSegment: 2)
+        engineControl.segmentCount = TranscriptionEngine.allCases.count
+        engineControl.setLabel("Cloud", forSegment: 0)
+        engineControl.setLabel("WhisperKit", forSegment: 1)
+        engineControl.setLabel("MLX", forSegment: 2)
+        engineControl.setLabel("whisper.cpp", forSegment: 3)
         engineControl.selectedSegmentBezelColor = Palette.accent
         engineControl.target = self
         engineControl.action = #selector(engineChanged)
-        addArrangedSubview(card(nil, [Row("Engine", detail: "WhisperKit is fastest: it transcribes while you speak.", [engineControl])], width: width))
+        addArrangedSubview(card(nil, [Row("Engine", detail: "Cloud needs Pro. The others run on this Mac.", [engineControl])], width: width))
+
+        cloudRow = Row("Foxtation Cloud", detail: "", [cloudStatus])
+        cloudCard = card("Foxtation Cloud", [cloudRow], width: width)
+        addArrangedSubview(cloudCard)
 
         wkButton.controlSize = .small
         wkProgress.style = .bar
@@ -283,8 +291,9 @@ final class EnginePane: Pane {
 
         switch WhisperKitEngine.shared.state {
         case .notInstalled:
-            showWhisperKit("● Not installed", Palette.bad, button: "Download",
-                           detail: "1.6 GB download, then about a minute of setup.")
+            showWhisperKit("● Not installed", settings.engine == .cloud ? Palette.secondary : Palette.bad, button: "Download",
+                           detail: settings.engine == .cloud ? "Optional: 1.6 GB, for dictating offline."
+                                                             : "1.6 GB download, then about a minute of setup.")
         case .downloading(let progress):
             showWhisperKit("\(Int(progress * 100))%", Palette.secondary, button: nil, progress: progress,
                            detail: String(format: "Downloading %.1f of 1.6 GB", progress * 1.6))
@@ -293,7 +302,8 @@ final class EnginePane: Pane {
                            detail: "Setting up for the Neural Engine, about a minute.")
         case .ready:
             showWhisperKit("● Ready", Palette.good, button: nil,
-                           detail: "On this Mac and ready to dictate.")
+                           detail: settings.engine == .cloud ? "On this Mac: takes over when you're offline."
+                                                             : "On this Mac and ready to dictate.")
         case .failed(let message):
             showWhisperKit("● Failed", Palette.bad, button: "Retry", detail: message)
         }
@@ -319,11 +329,22 @@ final class EnginePane: Pane {
         cppRows.forEach { $0.refresh() }
         keepLoaded.isOn = settings.keepModelLoaded
 
-        let before = [wkCard.isHidden, mlxCard.isHidden, cppCard.isHidden]
-        wkCard.isHidden = settings.engine != .whisperKit
+        let activated = !settings.activationID.isEmpty
+        cloudStatus.stringValue = activated ? "● Ready" : "● Needs Pro"
+        cloudStatus.textColor = activated ? Palette.good : Palette.bad
+        let cloudDetail = activated
+            ? "Transcribed in the cloud while you speak. Nothing to download."
+            : "Needs Foxtation Pro: activate your license in License."
+        cloudRow.detailLabel.stringValue = cloudDetail
+        cloudRow.detailLabel.toolTip = cloudDetail
+
+        let before = [cloudCard.isHidden, wkCard.isHidden, mlxCard.isHidden, cppCard.isHidden]
+        cloudCard.isHidden = settings.engine != .cloud
+        // With Cloud, the on-device model is the optional offline backup.
+        wkCard.isHidden = settings.engine != .whisperKit && settings.engine != .cloud
         mlxCard.isHidden = settings.engine != .mlx
         cppCard.isHidden = settings.engine != .whisperCpp
-        if before != [wkCard.isHidden, mlxCard.isHidden, cppCard.isHidden] { onResize?() }
+        if before != [cloudCard.isHidden, wkCard.isHidden, mlxCard.isHidden, cppCard.isHidden] { onResize?() }
         loading = false
     }
 

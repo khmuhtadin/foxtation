@@ -4,6 +4,10 @@ import Foundation
 enum WavWriter {
 
     static func write(samples: [Float], sampleRate: Double, to url: URL) throws {
+        try data(samples: samples, sampleRate: sampleRate).write(to: url, options: .atomic)
+    }
+
+    static func data(samples: [Float], sampleRate: Double) -> Data {
         let rate = Int(sampleRate.rounded())
         let byteRate = rate * 2
         let dataSize = samples.count * 2
@@ -24,7 +28,6 @@ enum WavWriter {
             pcm[i] = Int16((clamped * 32767.0).rounded())
         }
         pcm.withUnsafeBufferPointer { out.append(Data(buffer: $0)) }
-
-        try out.write(to: url, options: .atomic)
+        return out
     }
 }

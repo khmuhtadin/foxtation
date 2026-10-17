@@ -22,9 +22,10 @@ enum InsertMethod: String, CaseIterable {
 }
 
 enum TranscriptionEngine: String, CaseIterable {
-    case whisperKit, mlx, whisperCpp
+    case cloud, whisperKit, mlx, whisperCpp
     var label: String {
         switch self {
+        case .cloud:      return "Foxtation Cloud — Pro, nothing to download"
         case .whisperKit: return "WhisperKit — Neural Engine, transcribes while you speak"
         case .mlx:        return "MLX Whisper — Apple GPU"
         case .whisperCpp: return "whisper.cpp — ggml models, no Python"

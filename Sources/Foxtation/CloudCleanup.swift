@@ -116,6 +116,31 @@ enum CloudCleanup {
         return reply
     }
 
+    // MARK: Transcription
+
+    /// A dictation transcribed in Foxtation Cloud (Pro): each stretch of speech
+    /// goes to ElevenLabs Scribe, or Whisper large-v3 after an hour a day. Nothing
+    /// to download. `language` "auto" picks among `languages`.
+    static func session(language: String, among languages: [String],
+                        licenseKey: String, activationID: String) -> SpeechSession {
+        SpeechSession { chunk in
+            try await transcribe(chunk, language: language, among: languages,
+                                 licenseKey: licenseKey, activationID: activationID)
+        }
+    }
+
+    static func transcribe(_ samples: [Float], language: String, among languages: [String],
+                           licenseKey: String, activationID: String) async throws -> (text: String, language: String) {
+        let data = try await send("v1/transcribe",
+                                  query: [URLQueryItem(name: "language", value: language),
+                                          URLQueryItem(name: "languages", value: languages.joined(separator: ","))],
+                                  data: WavWriter.data(samples: samples, sampleRate: Double(SpeechSession.sampleRate)),
+                                  type: "audio/wav", licenseKey: licenseKey, activationID: activationID)
+        struct Heard: Decodable { var text: String; var language: String }
+        guard let heard = try? JSONDecoder().decode(Heard.self, from: data) else { throw CloudError.server("unexpected reply") }
+        return (heard.text, heard.language)
+    }
+
     /// Opens (or refreshes) the HTTPS connection so the next request skips the
     /// TLS handshake. Fire and forget; the server answers 404.
     static func warmUp() {
@@ -174,13 +199,21 @@ enum CloudCleanup {
 
     private static func post(_ path: String, body: [String: Any],
                              licenseKey: String, activationID: String) async throws -> Data {
-        var request = URLRequest(url: server.appendingPathComponent(path))
+        try await send(path, data: try JSONSerialization.data(withJSONObject: body), type: "application/json",
+                       licenseKey: licenseKey, activationID: activationID)
+    }
+
+    private static func send(_ path: String, query: [URLQueryItem] = [], data body: Data, type: String,
+                             licenseKey: String, activationID: String) async throws -> Data {
+        var url = URLComponents(url: server.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { url.queryItems = query }
+        var request = URLRequest(url: url.url!)
         request.httpMethod = "POST"
         request.timeoutInterval = 15
         request.setValue("Bearer \(licenseKey)", forHTTPHeaderField: "Authorization")
         request.setValue(activationID, forHTTPHeaderField: "X-Foxtation-Activation")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.setValue(type, forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
 
         let data: Data
         let response: URLResponse
@@ -251,6 +284,7 @@ final class CloudStatus: ObservableObject {
             // Already gone on the server.
         }
         settings.activationID = ""
+        if settings.engine == .cloud { settings.engine = .whisperKit }
         license = nil
         usage = nil
     }
