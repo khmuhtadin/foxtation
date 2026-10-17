@@ -184,6 +184,8 @@ struct RootView: View {
                         .frame(width: 820, height: 560)
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.fxCard))
                         .clipShape(RoundedRectangle(cornerRadius: 14))
+                        // The shadow is lost on a dark window; the ring keeps the edge.
+                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.fxSeparator))
                         .shadow(color: .black.opacity(0.25), radius: 30, y: 12)
                 }
             }
@@ -221,14 +223,14 @@ struct Sidebar: View {
             HStack(spacing: 8) {
                 Image(nsImage: NSApp.applicationIconImage ?? NSImage())
                     .resizable().frame(width: 26, height: 26)
-                Text("Foxtation").font(.system(size: 15, weight: .semibold))
+                Text("Foxtation").font(FXFont.headline)
             }
             .padding(.leading, 6)
             .padding(.top, 38)  // below the traffic lights
             .padding(.bottom, 18)
 
             ForEach(items, id: \.0) { page, title, symbol in
-                item(title, symbol, selected: model.page == page || (page == .home && model.page == .history)) {
+                NavRow(title: title, symbol: symbol, selected: model.page == page || (page == .home && model.page == .history)) {
                     model.page = page
                 }
             }
@@ -237,28 +239,13 @@ struct Sidebar: View {
 
             UsageCard(model: model)
                 .padding(.bottom, 10)
-            item("Settings", "gearshape", selected: false) { model.openSettings() }
-            item("Help", "questionmark.circle", selected: false) {
+            NavRow(title: "Settings", symbol: "gearshape", selected: false) { model.openSettings() }
+            NavRow(title: "Help", symbol: "questionmark.circle", selected: false) {
                 NSWorkspace.shared.open(URL(string: "https://github.com/khmuhtadin/foxtation#readme")!)
             }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 14)
-    }
-
-    private func item(_ title: String, _ symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 9) {
-                Image(systemName: symbol).frame(width: 16).foregroundStyle(selected ? Color.fxInk : Color.fxSecondary)
-                Text(title).font(FXFont.body.weight(selected ? .semibold : .regular))
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 7).fill(selected ? Color.fxCard : .clear))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 

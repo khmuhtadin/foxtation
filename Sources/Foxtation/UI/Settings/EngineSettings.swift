@@ -7,7 +7,7 @@ struct EngineSettings: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             PaneView { EnginePane(settings: model.settings, onChange: {}, width: SettingsLayout.contentWidth) }
             PaneView { AdvancedPane(settings: model.settings, onChange: {}, width: SettingsLayout.contentWidth) }
         }

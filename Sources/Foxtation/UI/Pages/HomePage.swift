@@ -35,18 +35,11 @@ struct HomePage: View {
                     .foregroundStyle(Color.fxInk)
                 Text("·").foregroundStyle(Color.fxSecondary)
                 Text(model.microphoneName).foregroundStyle(Color.fxSecondary)
+                    .lineLimit(1)
                 Spacer()
-                Button { model.page = .history } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.fxSecondary)
-                        .frame(width: 26, height: 26)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Search history")
-                .accessibilityLabel("Search history")
+                IconButton(symbol: "magnifyingglass", label: "Search history", size: 12) { model.page = .history }
                 Avatar(name: model.userName)
+                    .help(model.userName)
             }
             .font(FXFont.detail)
             .padding(.horizontal, 20)
@@ -125,17 +118,15 @@ struct HomePage: View {
     // MARK: - Today
 
     private func todayList(_ today: [Dictation], hasHistory: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 SectionLabel(text: "Today")
                 Spacer()
                 if hasHistory {
-                    Button("View all") { model.page = .history }
-                        .buttonStyle(.plain)
-                        .font(FXFont.detail.weight(.medium))
-                        .foregroundStyle(Color.fxAccent)
+                    TextLink(title: "View all") { model.page = .history }
                 }
             }
+            .frame(height: 28)
             if today.isEmpty {
                 HistoryEmptyCard(symbol: "waveform",
                                  title: "Nothing dictated today yet",

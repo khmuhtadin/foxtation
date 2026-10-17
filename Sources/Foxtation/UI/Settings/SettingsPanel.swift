@@ -38,16 +38,8 @@ struct SettingsPanel: View {
         }
         .background(Color.fxCard)
         .overlay(alignment: .topTrailing) {
-            Button { close() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.fxSecondary)
-                    .frame(width: 26, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close settings")
-            .padding(12)
+            IconButton(symbol: "xmark", label: "Close settings (esc)", size: 12) { close() }
+                .padding(11)
         }
         .onAppear {
             // Esc closes the panel, except while the shortcut recorder is listening.
@@ -98,7 +90,7 @@ struct SettingsNav: View {
             Spacer()
 
             HStack {
-                Text("Foxtation v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–")")
+                Text(version.map { "Foxtation v\($0)" } ?? "Foxtation")
                 Spacer()
                 Circle().fill(model.cloudOn ? Color.fxGood : Color.fxTrack).frame(width: 6, height: 6)
                 Text("Cloud")
@@ -113,23 +105,12 @@ struct SettingsNav: View {
     }
 
     private func item(_ value: SettingsSection) -> some View {
-        let selected = section == value
-        return Button { section = value } label: {
-            HStack(spacing: 9) {
-                Image(systemName: value.symbol)
-                    .font(.system(size: 12))
-                    .frame(width: 16)
-                    .foregroundStyle(selected ? Color.fxInk : Color.fxSecondary)
-                Text(value.label).font(FXFont.body.weight(selected ? .semibold : .regular)).foregroundStyle(Color.fxInk)
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 7).fill(selected ? Color.fxCard : .clear))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.fxSeparator : .clear))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        NavRow(title: value.label, symbol: value.symbol, selected: section == value) { section = value }
+    }
+
+    /// nil when not running from an app bundle (debug builds).
+    private var version: String? {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
     }
 }
 

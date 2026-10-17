@@ -44,18 +44,13 @@ struct DictionaryPage: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 Text("Foxtation spells it your way.")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(FXFont.headline)
                     .foregroundStyle(Color.fxInk)
                 Spacer()
-                Button { introHidden = true } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.fxSecondary)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Hide")
+                IconButton(symbol: "xmark", label: "Hide this tip", size: 10) { introHidden = true }
+                    .padding(.top, -6)
+                    .padding(.trailing, -8)
+                    .padding(.bottom, -6)
             }
             Text("Add names, product terms and slang once. Every dictation and cloud cleanup uses this list, so “Jakmall” never turns into “jack mall”.")
                 .font(FXFont.body)
@@ -76,9 +71,10 @@ struct DictionaryPage: View {
                                 .font(FXFont.detail.weight(.medium))
                                 .foregroundStyle(Color.fxInk)
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
+                                .frame(height: 26)
                                 .background(Capsule().fill(Color.fxCard))
                                 .overlay(Capsule().strokeBorder(Color.fxSeparator))
+                                .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
                         .help("Add “\(word)” to your dictionary")
@@ -106,21 +102,8 @@ struct DictionaryPage: View {
                 (.replacements, "Replacements \(replacements)"),
             ])
             Spacer()
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.fxSecondary)
-                TextField("Search", text: $state.search)
-                    .textFieldStyle(.plain)
-                    .font(FXFont.detail)
-                    .foregroundStyle(Color.fxInk)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(width: 180)
-            .background(RoundedRectangle(cornerRadius: 7).fill(Color.fxCard))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.fxSeparator))
-            .padding(.bottom, 6)
+            SearchField(placeholder: "Search", text: $state.search, width: 200)
+                .padding(.bottom, 6)
         }
         .overlay(alignment: .bottom) { Rectangle().fill(Color.fxSeparator).frame(height: 1).offset(y: 0.5) }
     }
@@ -185,7 +168,7 @@ struct DictionaryPage: View {
                     .lineLimit(1)
                 Spacer(minLength: 12)
                 Text(trailing())
-                    .font(FXFont.caption)
+                    .font(FXFont.detail)
                     .foregroundStyle(Color.fxSecondary)
                     .lineLimit(1)
                     .frame(width: 190, alignment: .leading)

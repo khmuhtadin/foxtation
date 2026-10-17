@@ -21,11 +21,11 @@ struct PrivacySettings: View {
 
             RowsCard {
                 SettingRow(title: "Cloud cleanup", detail: "Off: paste the raw on-device transcript, nothing sent.") {
-                    FXSwitch(isOn: model.setting(\.cloudCleanup))
+                    FXSwitch(label: "Cloud cleanup", isOn: model.setting(\.cloudCleanup))
                 }
                 RowDivider()
                 SettingRow(title: "Share the app name", detail: "Sends “Slack” or “Mail” so cleanup can match the style.") {
-                    FXSwitch(isOn: model.setting(\.shareAppName))
+                    FXSwitch(label: "Share the app name", isOn: model.setting(\.shareAppName))
                 }
                 RowDivider()
                 SettingRow(title: "Keep history on this Mac", detail: "Transcripts shown on Home. Stored locally only.") {
@@ -33,7 +33,7 @@ struct PrivacySettings: View {
                 }
                 RowDivider()
                 SettingRow(title: "Keep audio recordings", detail: "Lets you replay a dictation. Uses disk space.") {
-                    FXSwitch(isOn: model.setting(\.keepAudio))
+                    FXSwitch(label: "Keep audio recordings", isOn: model.setting(\.keepAudio))
                 }
             }
 

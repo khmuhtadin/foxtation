@@ -8,7 +8,7 @@ struct ShortcutSettings: View {
         VStack(alignment: .leading, spacing: 12) {
             RowsCard {
                 SettingRow(title: "Shortcut", detail: "Click, then press the new keys. Must include ⌃ or ⌥, so it can’t clash with ⌘V, ⌘C and other app shortcuts.") {
-                    ShortcutRecorder(settings: model.settings).frame(width: 120, height: 24)
+                    ShortcutRecorder(settings: model.settings).frame(width: 140, height: 28)
                 }
                 RowDivider()
                 SettingRow(title: "Shortcut mode", detail: nil) {
@@ -17,7 +17,7 @@ struct ShortcutSettings: View {
                 }
                 RowDivider()
                 SettingRow(title: "Hold right ⌥ to talk", detail: "Double-tap it for hands-free.") {
-                    FXSwitch(isOn: model.setting(\.holdRightOption))
+                    FXSwitch(label: "Hold right ⌥ to talk", isOn: model.setting(\.holdRightOption))
                 }
             }
             SettingsNote(text: "Esc cancels recording a new shortcut and keeps the current one.")

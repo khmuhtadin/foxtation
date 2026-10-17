@@ -5,7 +5,7 @@ enum HUDState {
     /// `warning`: text was pasted, but without cloud cleanup (limit, offline, license).
     case hidden, listening, processing, success, warning, error, cancelled
 
-    /// State color: the glowing border, its halo and the waveform.
+    /// State color: the border and the state icons.
     var accent: Color {
         switch self {
         case .listening:  return Color(hex: 0x6C7DF2)
@@ -144,7 +144,6 @@ struct PillView: View {
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            
 
             ZStack {
                 WaveformView(meter: model.meter, state: state, paused: !model.isShown)
@@ -162,7 +161,6 @@ struct PillView: View {
             }
             .frame(width: model.actionTitle == nil ? WaveformView.width : 0)
             .clipped()
-            
 
             if let action = model.actionTitle {
                 Button { model.onAction?() } label: {
@@ -170,11 +168,12 @@ struct PillView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.white)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .frame(height: 24)
                         .background(Capsule().fill(Color.white.opacity(0.16)))
+                        .padding(.vertical, 2)  // a 28pt tall hit area
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                
             }
 
             Button { model.onClose?() } label: {
@@ -183,24 +182,24 @@ struct PillView: View {
                     .foregroundStyle(Color.white.opacity(0.7))
                     .frame(width: 20, height: 20)
                     .background(Circle().fill(Color.white.opacity(0.12)))
+                    .padding(4)  // a 28pt hit area around the 20pt circle
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .help("Cancel (esc)")
             .accessibilityLabel("Cancel dictation (esc)")
             .opacity(state.showsClose ? 1 : 0)
             .frame(width: state.showsClose ? nil : 0)
             .clipped()
         }
         .padding(.leading, PillMetrics.leadingInset)
-        .padding(.trailing, 16)
+        .padding(.trailing, state.showsClose ? 12 : 16)  // the × carries 4pt of hit area
         .frame(width: PillMetrics.width, height: PillMetrics.height)
         .background(background)
+        // State border: one crisp line in the state color, no glow.
         .overlay(
-            // Glowing state border: a crisp stroke plus a blurred copy as the halo.
-            ZStack {
-                Capsule().strokeBorder(state.accent.opacity(0.55), lineWidth: 3).blur(radius: 5)
-                Capsule().strokeBorder(state.accent.opacity(0.95), lineWidth: 1.5)
-            }
-            .animation(.easeInOut(duration: 0.25), value: state)
+            Capsule().strokeBorder(state.accent.opacity(0.85), lineWidth: 1.5)
+                .animation(.easeOut(duration: 0.15), value: state)
         )
         .onHover { model.onHover?($0) }
     }

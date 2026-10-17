@@ -61,8 +61,15 @@ final class Toggle: NSView {
         (isOn ? Palette.accent : Palette.track).setFill()
         NSBezierPath(roundedRect: bounds, xRadius: bounds.height / 2, yRadius: bounds.height / 2).fill()
         let knob = NSRect(x: isOn ? bounds.maxX - 18 : 2, y: 2, width: 16, height: 16)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()  // same knob shadow as FXSwitch
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.2)
+        shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+        shadow.shadowBlurRadius = 1
+        shadow.set()
         NSColor.white.setFill()
         NSBezierPath(ovalIn: knob).fill()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     override func mouseDown(with event: NSEvent) { flip() }
@@ -98,22 +105,23 @@ private final class Row: NSStackView {
     let detailLabel: NSTextField
 
     init(_ title: String, detail: String? = nil, _ controls: [NSView]) {
-        titleLabel = label(title)
-        detailLabel = label(detail ?? "", size: 11, color: Palette.secondary)
+        titleLabel = label(title, weight: .medium)
+        detailLabel = label(detail ?? "", size: 12, color: Palette.secondary)
         detailLabel.lineBreakMode = .byTruncatingTail
+        detailLabel.toolTip = detail  // the full text when it truncates
         detailLabel.isHidden = detail == nil
 
         let labels = NSStackView(views: [titleLabel, detailLabel])
         labels.orientation = .vertical
         labels.alignment = .leading
-        labels.spacing = 1
+        labels.spacing = 2
         labels.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         super.init(frame: .zero)
         orientation = .horizontal
         alignment = .centerY
         spacing = 8
-        edgeInsets = NSEdgeInsets(top: 9, left: 14, bottom: 9, right: 14)
+        edgeInsets = NSEdgeInsets(top: 11, left: 14, bottom: 11, right: 14)
         setViews([labels, NSView()] + controls, in: .leading)
         heightAnchor.constraint(greaterThanOrEqualToConstant: 40).isActive = true
     }
@@ -153,11 +161,17 @@ private func card(_ title: String?, _ rows: [NSView], width: CGFloat = Layout.ca
     let group = NSStackView()
     group.orientation = .vertical
     group.alignment = .leading
-    group.spacing = 6
+    group.spacing = 8
     if let title {
-        let heading = label(title.uppercased(), size: 11, weight: .semibold, color: Palette.secondary)
+        let heading = label("", size: 11, weight: .semibold, color: Palette.secondary)
+        // Same as the SwiftUI SectionLabel: small caps with a little tracking.
+        heading.attributedStringValue = NSAttributedString(string: title.uppercased(), attributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: Palette.secondary,
+            .kern: 0.4,
+        ])
         group.addArrangedSubview(heading)
-        group.setCustomSpacing(6, after: heading)
+        group.setCustomSpacing(8, after: heading)
     }
     group.addArrangedSubview(background)
     background.widthAnchor.constraint(equalToConstant: width).isActive = true
@@ -175,7 +189,7 @@ class Pane: NSStackView {
         super.init(frame: .zero)
         orientation = .vertical
         alignment = .leading
-        spacing = 16
+        spacing = 20
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
@@ -203,7 +217,7 @@ final class EnginePane: Pane {
     private var mlxRows: [MLXModelRowView] = []
     private var cppRows: [CppModelRowView] = []
     private let runtimeStatus = label("", size: 12, weight: .medium)
-    private lazy var setupButton = accentButton("Set Up", target: self, action: #selector(setUpRuntime))
+    private lazy var setupButton = accentButton("Set up", target: self, action: #selector(setUpRuntime))
     private let keepLoaded = Toggle()
     private var loading = false
 
@@ -222,7 +236,7 @@ final class EnginePane: Pane {
         engineControl.selectedSegmentBezelColor = Palette.accent
         engineControl.target = self
         engineControl.action = #selector(engineChanged)
-        addArrangedSubview(card(nil, [Row("Engine", detail: "WhisperKit is fastest: it transcribes while you speak", [engineControl])], width: width))
+        addArrangedSubview(card(nil, [Row("Engine", detail: "WhisperKit is fastest: it transcribes while you speak.", [engineControl])], width: width))
 
         wkButton.controlSize = .small
         wkProgress.style = .bar
@@ -249,7 +263,7 @@ final class EnginePane: Pane {
             self.onChange()
         }
         mlxCard = card("MLX models", [Row("Python runtime", detail: "About 200 MB · needs uv: brew install uv", [runtimeStatus, setupButton])] + mlxRows
-            + [Row("Keep model in memory", detail: "Instant start, uses about 1.6 GB", [keepLoaded])], width: width)
+            + [Row("Keep model in memory", detail: "Starts instantly, uses about 1.6 GB of memory.", [keepLoaded])], width: width)
         addArrangedSubview(mlxCard)
 
         cppRows = ModelStore.catalog.map { CppModelRowView(descriptor: $0, settings: settings, store: ModelStore.shared, onUpdate: update) }
@@ -270,16 +284,16 @@ final class EnginePane: Pane {
         switch WhisperKitEngine.shared.state {
         case .notInstalled:
             showWhisperKit("● Not installed", Palette.bad, button: "Download",
-                           detail: "1.6 GB download, then a one-time setup of about a minute")
+                           detail: "1.6 GB download, then about a minute of setup.")
         case .downloading(let progress):
             showWhisperKit("\(Int(progress * 100))%", Palette.secondary, button: nil, progress: progress,
                            detail: String(format: "Downloading %.1f of 1.6 GB", progress * 1.6))
         case .loading:
             showWhisperKit("Preparing…", Palette.secondary, button: nil, progress: -1,
-                           detail: "Setting up for the Neural Engine, about a minute the first time")
+                           detail: "Setting up for the Neural Engine, about a minute.")
         case .ready:
             showWhisperKit("● Ready", Palette.good, button: nil,
-                           detail: "On this Mac and ready to dictate")
+                           detail: "On this Mac and ready to dictate.")
         case .failed(let message):
             showWhisperKit("● Failed", Palette.bad, button: "Retry", detail: message)
         }
@@ -297,7 +311,7 @@ final class EnginePane: Pane {
         } else {
             runtimeStatus.stringValue = "● Not installed"
             runtimeStatus.textColor = Palette.bad
-            setupButton.title = "Set Up"
+            setupButton.title = "Set up"
             setupButton.isEnabled = true
         }
 
@@ -337,6 +351,7 @@ final class EnginePane: Pane {
         wkButton.isHidden = button == nil
         if let button { wkButton.title = button }
         wkRow.detailLabel.stringValue = detail
+        wkRow.detailLabel.toolTip = detail
         wkRow.detailLabel.isHidden = false
         wkProgress.isHidden = progress == nil
         wkProgress.isIndeterminate = progress == -1
@@ -483,9 +498,11 @@ private final class CppModelRowView: NSView {
         row.detailLabel.isHidden = false
         if let error = store.errors[descriptor.file], !downloading {
             row.detailLabel.stringValue = error
+            row.detailLabel.toolTip = error
             row.detailLabel.textColor = Palette.bad
         } else {
             row.detailLabel.stringValue = "\(descriptor.size) · \(descriptor.note)"
+            row.detailLabel.toolTip = row.detailLabel.stringValue
             row.detailLabel.textColor = Palette.secondary
         }
         action.title = downloading ? "Cancel" : (installed ? "Delete" : "Download")
@@ -546,7 +563,7 @@ final class AdvancedPane: Pane {
         maxSlider.translatesAutoresizingMaskIntoConstraints = false
         maxSlider.widthAnchor.constraint(equalToConstant: 150).isActive = true
 
-        prompt.font = .systemFont(ofSize: 12)
+        prompt.font = .systemFont(ofSize: 13)
         prompt.textColor = Palette.ink
         prompt.drawsBackground = false
         prompt.isRichText = false
@@ -559,26 +576,25 @@ final class AdvancedPane: Pane {
         scroll.borderType = .noBorder
         prompt.autoresizingMask = [.width]
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        let field = FillView(color: Palette.background, radius: 8)  // visible text area
+        // The window's inset field style, as in the Dictionary editor.
+        let field = FillView(color: Palette.wash, radius: 7, border: Palette.separator)
         field.addSubview(scroll)
         field.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             field.widthAnchor.constraint(equalToConstant: width - 28),
-            field.heightAnchor.constraint(equalToConstant: 52),
+            field.heightAnchor.constraint(equalToConstant: 56),
             scroll.leadingAnchor.constraint(equalTo: field.leadingAnchor, constant: 8),
             scroll.trailingAnchor.constraint(equalTo: field.trailingAnchor, constant: -4),
-            scroll.topAnchor.constraint(equalTo: field.topAnchor, constant: 2),
-            scroll.bottomAnchor.constraint(equalTo: field.bottomAnchor, constant: -2),
+            scroll.topAnchor.constraint(equalTo: field.topAnchor, constant: 3),
+            scroll.bottomAnchor.constraint(equalTo: field.bottomAnchor, constant: -3),
         ])
-        let promptBox = NSStackView(views: [
-            label("Vocabulary prompt"),
-            label("Names, jargon or acronyms to bias recognition. Leave empty to disable.", size: 11, color: Palette.secondary),
-            field,
-        ])
+        let promptDetail = label("Names, jargon or acronyms to bias recognition. Leave empty to turn it off.", size: 12, color: Palette.secondary)
+        let promptBox = NSStackView(views: [label("Vocabulary prompt", weight: .medium), promptDetail, field])
         promptBox.orientation = .vertical
         promptBox.alignment = .leading
-        promptBox.spacing = 4
-        promptBox.edgeInsets = NSEdgeInsets(top: 10, left: 14, bottom: 8, right: 14)
+        promptBox.spacing = 2
+        promptBox.setCustomSpacing(8, after: promptDetail)
+        promptBox.edgeInsets = NSEdgeInsets(top: 11, left: 14, bottom: 14, right: 14)
 
         let choose = NSButton(title: "Choose…", target: self, action: #selector(chooseBinary))
         choose.controlSize = .small
@@ -590,12 +606,12 @@ final class AdvancedPane: Pane {
 
         addArrangedSubview(card("Recognition", [
             promptBox,
-            Row("Max recording length", detail: "Recording stops automatically", [maxValue, maxSlider]),
+            Row("Max recording length", detail: "Recording stops on its own after this.", [maxValue, maxSlider]),
             Row("CPU threads", detail: "whisper.cpp only", [threadsValue, threadsStepper]),
             Row("whisper-cli binary", detail: "brew install whisper-cpp", [binaryValue, choose]),
         ], width: width))
         addArrangedSubview(card(nil, [
-            Row("Reset all settings", detail: "Models and the MLX runtime are kept", [reset]),
+            Row("Reset all settings", detail: "Downloaded models and the MLX runtime are kept.", [reset]),
         ], width: width))
     }
 
@@ -677,11 +693,11 @@ final class RecorderButton: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.cornerRadius = 6
+        layer?.cornerRadius = 7
         layer?.borderWidth = 1
 
         label.alignment = .center
-        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.font = .systemFont(ofSize: 13, weight: .medium)
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         NSLayoutConstraint.activate([
@@ -752,7 +768,8 @@ final class RecorderButton: NSView {
     }
 
     override func updateLayer() {
-        layer?.borderColor = (recording ? Palette.accent : Palette.track).cgColor
-        layer?.backgroundColor = (recording ? Palette.accent.withAlphaComponent(0.10) : Palette.background).cgColor
+        // The window's inset field style; accent while it listens for keys.
+        layer?.borderColor = (recording ? Palette.accent : Palette.separator).cgColor
+        layer?.backgroundColor = (recording ? Palette.accent.withAlphaComponent(0.10) : Palette.wash).cgColor
     }
 }

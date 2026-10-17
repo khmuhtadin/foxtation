@@ -13,7 +13,7 @@ struct LicenseSettings: View {
             header
             if cloud.isActivated { activatedCard } else { entryCard }
             if let error = form.error {
-                Text(error).font(FXFont.detail).foregroundStyle(Color.fxBad)
+                Label(error, systemImage: "exclamationmark.circle").font(FXFont.detail).foregroundStyle(Color.fxBad)
             } else if cloud.isActivated, let licenseError = cloud.licenseError {
                 Label(licenseError, systemImage: "exclamationmark.circle")
                     .font(FXFont.caption).foregroundStyle(Color.fxSecondary)
@@ -30,13 +30,13 @@ struct LicenseSettings: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text("Foxtation Cloud").font(.system(size: 15, weight: .semibold))
+                    Text("Foxtation Cloud").font(FXFont.headline)
                     StatusBadge(text: cloud.isActivated ? "Active" : "Not activated", good: cloud.isActivated)
                 }
                 Text(cloud.isActivated ? "Subscription via Polar" : "Clean, punctuated text in your style. Subscription via Polar.")
                     .font(FXFont.detail).opacity(0.75)
             }
-            .foregroundStyle(Color.fxCard)
+            .foregroundStyle(Color.fxOnFeature)
             Spacer()
             if cloud.isActivated {
                 Button("Manage subscription ↗") {
@@ -50,7 +50,7 @@ struct LicenseSettings: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.fxInk))
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.fxFeature))
     }
 
     // MARK: - Not activated
@@ -63,7 +63,7 @@ struct LicenseSettings: View {
                     TextField("FOXTATION-…", text: $form.keyField)
                         .textFieldStyle(.plain)
                         .font(FXFont.mono)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .padding(.horizontal, 10).frame(height: 30)
                         .background(RoundedRectangle(cornerRadius: 7).fill(Color.fxWash))
                         .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.fxSeparator))
                         .onSubmit(activate)
@@ -110,7 +110,7 @@ struct LicenseSettings: View {
                         .font(FXFont.mono)
                         .lineLimit(1).truncationMode(.middle)
                         .textSelection(.enabled)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .padding(.horizontal, 10).frame(height: 30)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: 7).fill(Color.fxWash))
                         .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.fxSeparator))
