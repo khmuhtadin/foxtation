@@ -34,6 +34,8 @@ final class Recorder {
 
     private(set) var isRecording = false
 
+    /// Called on the audio thread with each converted 16 kHz mono buffer.
+    var onSamples: (([Float]) -> Void)?
     /// Called on the main thread with a 0…1 loudness value.
     var onLevel: ((Float) -> Void)?
     /// Called on the main thread when the max duration is reached or the
@@ -159,7 +161,9 @@ final class Recorder {
 
         let count = Int(output.frameLength)
         let pointer = channel[0]
-        samples.append(contentsOf: UnsafeBufferPointer(start: pointer, count: count))
+        let converted = UnsafeBufferPointer(start: pointer, count: count)
+        samples.append(contentsOf: converted)
+        onSamples?(Array(converted))
 
         var sum: Float = 0
         for i in 0..<count { sum += pointer[i] * pointer[i] }
