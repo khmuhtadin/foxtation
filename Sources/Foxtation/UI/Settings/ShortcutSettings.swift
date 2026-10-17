@@ -7,7 +7,7 @@ struct ShortcutSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             RowsCard {
-                SettingRow(title: "Shortcut", detail: "Click, then press the new keys. Must include ⌘, ⌥ or ⌃.") {
+                SettingRow(title: "Shortcut", detail: "Click, then press the new keys. Must include ⌃ or ⌥, so it can’t clash with ⌘V, ⌘C and other app shortcuts.") {
                     ShortcutRecorder(settings: model.settings).frame(width: 120, height: 24)
                 }
                 RowDivider()
