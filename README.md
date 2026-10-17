@@ -41,7 +41,7 @@ brew install --cask khmuhtadin/tap/foxtation
 
 ### DMG
 
-1. Download `Foxtation-x.y.z.dmg` from [Releases](https://github.com/khmuhtadin/foxtation/releases) and drag **Foxtation** into **Applications**.
+1. [Download Foxtation.dmg](https://github.com/khmuhtadin/foxtation/releases/latest/download/Foxtation.dmg) (the latest release) and drag **Foxtation** into **Applications**.
 2. Foxtation isn't notarized by Apple yet, so the first launch is blocked. Open it once, then go to **System Settings › Privacy & Security** and click **Open Anyway** — or run:
 
    ```sh

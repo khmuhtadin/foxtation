@@ -15,8 +15,12 @@
    git commit -am "Release 0.2.0"
    git tag v0.2.0
    git push origin main v0.2.0
-   gh release create v0.2.0 dist/Foxtation-0.2.0.dmg --title "Foxtation 0.2.0" --notes-file docs/release-notes/0.2.0.md
+   gh release create v0.2.0 dist/Foxtation-0.2.0.dmg dist/Foxtation.dmg --title "Foxtation 0.2.0" --notes-file docs/release-notes/0.2.0.md
    ```
+
+   Attach both images: `Foxtation.dmg` is what the website's Download button
+   links to (`releases/latest/download/Foxtation.dmg`), so leaving it out breaks
+   the button.
 
 4. Update the tap. Copy `packaging/homebrew/foxtation.rb` to `Casks/foxtation.rb`
    in the [`khmuhtadin/homebrew-tap`](https://github.com/khmuhtadin/homebrew-tap)
