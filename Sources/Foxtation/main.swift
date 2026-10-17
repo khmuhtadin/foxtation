@@ -25,7 +25,7 @@ func runHeadlessIfRequested() -> Bool {
     let settings = Settings.shared
     settings.persistsChanges = false
     if let engine = value(for: "--engine") {
-        settings.engine = engine == "cpp" ? .whisperCpp : engine == "wk" ? .whisperKit : .mlx
+        settings.engine = engine == "cpp" ? .whisperCpp : engine == "wk" ? .whisperKit : engine == "cloud" ? .cloud : .mlx
     }
     if let model = value(for: "--model") {
         if settings.engine == .mlx { settings.mlxModel = model } else { settings.modelPath = model }
@@ -55,10 +55,15 @@ func runHeadlessIfRequested() -> Bool {
                                         duration: response.elapsed)
             case .whisperCpp:
                 transcript = try await Transcriber.transcribe(audio: audio, settings: settings)
-            case .whisperKit:
+            case .whisperKit, .cloud:
                 let samples = try WhisperKitEngine.samples(of: audio)
                 if arguments.contains("--realtime") {
                     transcript = try await transcribeInRealTime(samples, settings: settings)
+                } else if settings.engine == .cloud {
+                    let result = try await CloudCleanup.transcribe(
+                        samples, language: settings.language, among: settings.spokenLanguages,
+                        licenseKey: settings.licenseKey, activationID: settings.activationID)
+                    transcript = Transcript(text: result.text, language: result.language, duration: 0)
                 } else {
                     let result = try await WhisperKitEngine.shared.transcribe(
                         samples, language: settings.language == "auto" ? nil : settings.language,
@@ -76,7 +81,8 @@ func runHeadlessIfRequested() -> Bool {
             }
             FileHandle.standardError.write(Data(String(
                 format: "engine=%@ language=%@ wall=%.2fs\n",
-                settings.engine == .mlx ? settings.mlxModel : settings.engine == .whisperKit ? "whisperkit" : "whisper.cpp",
+                settings.engine == .mlx ? settings.mlxModel : settings.engine == .whisperKit ? "whisperkit"
+                    : settings.engine == .cloud ? "foxtation-cloud" : "whisper.cpp",
                 transcript.language, wall).utf8))
         } catch {
             FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
@@ -95,7 +101,10 @@ func runHeadlessIfRequested() -> Bool {
 /// recorder would, then "releases" and reports how long the text took after that.
 func transcribeInRealTime(_ samples: [Float], settings: Settings) async throws -> Transcript {
     _ = try await WhisperKitEngine.shared.load()
-    let session = WhisperKitEngine.Session(language: settings.language, among: settings.spokenLanguages)
+    let session = settings.engine == .cloud
+        ? CloudCleanup.session(language: settings.language, among: settings.spokenLanguages,
+                               licenseKey: settings.licenseKey, activationID: settings.activationID)
+        : WhisperKitEngine.shared.session(language: settings.language, among: settings.spokenLanguages)
     let step = 1_600
     let start = Date()
     for offset in stride(from: 0, to: samples.count, by: step) {
@@ -170,7 +179,7 @@ if let index = CommandLine.arguments.firstIndex(of: "--render-window"), index + 
     }
 }
 
-// Hidden: `Foxtation --eval [--language L] [--languages a,b] a.wav b.wav …` streams each
+// Hidden: `Foxtation --eval [--cloud] [--language L] [--languages a,b] a.wav b.wav …` streams each
 // clip through a dictation session (without waiting in real time) and prints
 // "file<TAB>language<TAB>seconds after release<TAB>text" per clip. For accuracy tests.
 if let index = CommandLine.arguments.firstIndex(of: "--eval") {
@@ -183,13 +192,18 @@ if let index = CommandLine.arguments.firstIndex(of: "--eval") {
     let language = value("--language") ?? "auto"
     let languages = value("--languages").map { $0.split(separator: ",").map(String.init) } ?? []
     let files = arguments.filter { $0.hasSuffix(".wav") }
+    let cloud = arguments.contains("--cloud")  // Foxtation Cloud with this Mac's license
+    let settings = Settings.shared
     let semaphore = DispatchSemaphore(value: 0)
     Task {
-        _ = try? await WhisperKitEngine.shared.load()
+        if !cloud { _ = try? await WhisperKitEngine.shared.load() }
         for file in files {
             do {
                 let samples = try WhisperKitEngine.samples(of: URL(fileURLWithPath: file))
-                let session = WhisperKitEngine.Session(language: language, among: languages)
+                let session = cloud
+                    ? CloudCleanup.session(language: language, among: languages,
+                                           licenseKey: settings.licenseKey, activationID: settings.activationID)
+                    : WhisperKitEngine.shared.session(language: language, among: languages)
                 for offset in stride(from: 0, to: samples.count, by: 1_600) {
                     session.append(Array(samples[offset..<min(offset + 1_600, samples.count)]))
                 }

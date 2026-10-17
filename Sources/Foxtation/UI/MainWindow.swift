@@ -105,6 +105,7 @@ extension AppModel {
         settings.licenseKey = "FOXTATION-89151850-3349-4A1A-9035-E56FDA79A59C"
         settings.activationID = "sample-activation"
         settings.cloudCleanup = true
+        settings.engine = .cloud
         let cloud = CloudStatus(settings: settings)
         cloud.usage = CloudUsage(used: 186, limit: 500, resetsAt: "2026-10-17T00:00:00.000Z")
         cloud.license = CloudLicense(status: "granted", displayKey: "****-79A59C", expiresAt: nil,

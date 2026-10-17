@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentCapture: URL?
     private var lastTranscript: String?
     /// WhisperKit: transcribes while the user is still speaking.
-    private var stream: WhisperKitEngine.Session?
+    private var stream: SpeechSession?
     /// The app the user is dictating into, captured when recording starts.
     private var target = DictationTarget(name: "", bundleID: "")
     /// Bumped on every finish/cancel so a stale transcription result is dropped.
@@ -209,6 +209,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         switch settings.engine {
+        case .cloud:
+            guard !settings.activationID.isEmpty else {
+                hud.show(.error("Foxtation Cloud needs Foxtation Pro — activate your license"))
+                showSettings(.license)
+                return
+            }
         case .whisperKit:
             guard WhisperKitEngine.shared.isInstalled else {
                 hud.show(.error("Speech model not installed — open Settings › Engine"))
@@ -240,16 +246,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wireRecorder()
         let front = NSWorkspace.shared.frontmostApplication
         target = DictationTarget(name: front?.localizedName ?? "", bundleID: front?.bundleIdentifier ?? "")
-        if settings.engine == .whisperKit {
-            let stream = WhisperKitEngine.Session(language: settings.language, among: settings.spokenLanguages)
+        if settings.engine == .whisperKit || settings.engine == .cloud {
+            let stream = settings.engine == .cloud
+                ? CloudCleanup.session(language: settings.language, among: settings.spokenLanguages,
+                                       licenseKey: settings.licenseKey, activationID: settings.activationID)
+                : WhisperKitEngine.shared.session(language: settings.language, among: settings.spokenLanguages)
             self.stream = stream
             recorder.onSamples = { stream.append($0) }
         } else {
             stream = nil
             recorder.onSamples = nil
         }
-        // Open the TLS connection now, so cleanup doesn't pay for it after release.
-        if settings.cloudCleanup, !settings.activationID.isEmpty { CloudCleanup.warmUp() }
+        // Open the TLS connection now, so the cloud doesn't pay for it after release.
+        if (settings.cloudCleanup || settings.engine == .cloud), !settings.activationID.isEmpty { CloudCleanup.warmUp() }
         do {
             try recorder.start()
             phase = .recording
@@ -299,7 +308,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let raw: Transcript
             do {
                 if let stream {
-                    raw = try await stream.finish()
+                    do {
+                        raw = try await stream.finish()
+                    } catch where self.settings.engine == .cloud && WhisperKitEngine.shared.isInstalled {
+                        // Offline or over the day's limit: the model on this Mac has the same recording.
+                        NSLog("Foxtation: cloud transcription failed, using this Mac: %@", error.localizedDescription)
+                        raw = try await self.transcribe(audio: capture)
+                    }
                 } else {
                     raw = try await self.transcribe(audio: capture)
                 }
@@ -372,7 +387,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func transcribe(audio: URL) async throws -> Transcript {
         switch settings.engine {
-        case .whisperKit:
+        case .cloud, .whisperKit:  // the cloud streams; this is its offline fallback
             let result = try await WhisperKitEngine.shared.transcribe(
                 try WhisperKitEngine.samples(of: audio),
                 language: settings.language == "auto" ? nil : settings.language,
@@ -638,10 +653,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             askedForAccessibility = true
             Permissions.requestAccessibility(prompt: true)
         }
-        if settings.engine == .whisperKit, !WhisperKitEngine.shared.isInstalled {
+        if settings.engine == .cloud, settings.activationID.isEmpty {
+            showSettings(.license)
+            hud.show(.error("Foxtation Cloud needs Foxtation Pro — activate your license"))
+        } else if settings.engine == .whisperKit, !WhisperKitEngine.shared.isInstalled {
             // First run: open the Engine screen so the download is one click away.
             showSettings(.engine)
-            hud.show(.error("Speech model not installed — open Settings › Engine and press Download"))
+            hud.show(.error("Speech model not installed — press Download in Settings › Engine, or activate Foxtation Pro to skip it"))
         } else if settings.engine == .mlx, MLXRuntime.shared.readyPython() == nil {
             hud.show(.error("MLX runtime not installed — open Settings › Engine and press Set Up"))
         } else if settings.engine == .whisperCpp,
