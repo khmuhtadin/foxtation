@@ -638,6 +638,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Permissions.requestAccessibility(prompt: true)
         }
         if settings.engine == .whisperKit, !WhisperKitEngine.shared.isInstalled {
+            // First run: open the Engine screen so the download is one click away.
+            showSettings(.engine)
             hud.show(.error("Speech model not installed — open Settings › Engine and press Download"))
         } else if settings.engine == .mlx, MLXRuntime.shared.readyPython() == nil {
             hud.show(.error("MLX runtime not installed — open Settings › Engine and press Set Up"))

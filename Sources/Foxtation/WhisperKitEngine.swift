@@ -45,26 +45,54 @@ final class WhisperKitEngine {
         downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(modelName)", isDirectory: true)
     }
 
+    /// The model's size on disk (1.6 GB), for the download progress.
+    static let downloadBytes = 1_638_464_446
+
+    /// Written once every file is downloaded, so a download that was cut off
+    /// halfway doesn't count as installed.
+    private static var completeMarker: URL { modelFolder.appendingPathComponent(".foxtation-complete") }
+
     var isInstalled: Bool {
-        FileManager.default.fileExists(atPath: Self.modelFolder.appendingPathComponent("AudioEncoder.mlmodelc").path)
+        FileManager.default.fileExists(atPath: Self.completeMarker.path)
     }
 
     // MARK: - Setup
 
-    /// Downloads the model (about 1.5 GB) if needed, then loads it.
+    /// Downloads the model if needed, then loads it.
     func install() {
         guard !isInstalled else { prewarm(); return }
         Task {
-            do {
-                state = .downloading(0)
-                _ = try await WhisperKit.download(variant: Self.modelName, downloadBase: Self.downloadBase) { progress in
-                    self.state = .downloading(progress.fractionCompleted)
+            state = .downloading(0)
+            // WhisperKit's own progress counts files, not bytes, so it would sit
+            // still during the one 1.3 GB file. Count the bytes on disk instead.
+            let progress = Task {
+                while !Task.isCancelled {
+                    state = .downloading(min(0.99, Double(Self.bytesOnDisk()) / Double(Self.downloadBytes)))
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                 }
+            }
+            do {
+                _ = try await WhisperKit.download(variant: Self.modelName, downloadBase: Self.downloadBase)
+                progress.cancel()
+                await progress.value
+                FileManager.default.createFile(atPath: Self.completeMarker.path, contents: nil)
                 _ = try await load()
             } catch {
+                progress.cancel()
+                await progress.value
                 state = .failed(error.localizedDescription)
             }
         }
+    }
+
+    /// Everything under the download folder, partly downloaded files included.
+    private static func bytesOnDisk() -> Int {
+        let files = FileManager.default.enumerator(at: downloadBase, includingPropertiesForKeys: [.fileSizeKey])
+        var total = 0
+        while let file = files?.nextObject() as? URL {
+            total += (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        }
+        return total
     }
 
     /// Loads the model in the background if it's installed and not loaded yet.

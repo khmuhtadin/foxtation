@@ -1,14 +1,13 @@
 cask "foxtation" do
-  version "0.1.2"
-  sha256 "1fe31d9f11c9c48748e5ee620736a67991d59af8570fe4f3ab019d581e33e501"
+  version "0.2.0"
+  sha256 "0566eb8171e5eb82ea959d31383fbd8d8c370830a745557a64713259c47514d1"
 
   url "https://github.com/khmuhtadin/foxtation/releases/download/v#{version}/Foxtation-#{version}.dmg"
   name "Foxtation"
-  desc "Local voice dictation with a fox"
+  desc "Fast voice dictation for Indonesian and English"
   homepage "https://github.com/khmuhtadin/foxtation"
 
   depends_on arch: :arm64
-  depends_on formula: "uv"
   depends_on macos: :sonoma
 
   app "Foxtation.app"
