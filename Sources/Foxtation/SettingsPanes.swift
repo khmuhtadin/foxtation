@@ -193,8 +193,11 @@ final class EnginePane: Pane {
     private let width: CGFloat
 
     private let engineControl = NSSegmentedControl()
+    private var wkCard: NSView!
     private var mlxCard: NSView!
     private var cppCard: NSView!
+    private let wkStatus = label("", size: 12, weight: .medium)
+    private lazy var wkButton = accentButton("Download", target: self, action: #selector(installWhisperKit))
     private var mlxRows: [MLXModelRowView] = []
     private var cppRows: [CppModelRowView] = []
     private let runtimeStatus = label("", size: 12, weight: .medium)
@@ -210,13 +213,21 @@ final class EnginePane: Pane {
 
         engineControl.segmentStyle = .rounded
         engineControl.trackingMode = .selectOne
-        engineControl.segmentCount = 2
-        engineControl.setLabel("MLX · Apple GPU", forSegment: 0)
-        engineControl.setLabel("whisper.cpp", forSegment: 1)
+        engineControl.segmentCount = 3
+        engineControl.setLabel("WhisperKit", forSegment: 0)
+        engineControl.setLabel("MLX", forSegment: 1)
+        engineControl.setLabel("whisper.cpp", forSegment: 2)
         engineControl.selectedSegmentBezelColor = Palette.accent
         engineControl.target = self
         engineControl.action = #selector(engineChanged)
-        addArrangedSubview(card(nil, [Row("Engine", detail: "MLX is fastest on Apple silicon", [engineControl])], width: width))
+        addArrangedSubview(card(nil, [Row("Engine", detail: "WhisperKit is fastest: it transcribes while you speak", [engineControl])], width: width))
+
+        wkButton.controlSize = .small
+        wkCard = card("WhisperKit model", [
+            Row("Whisper large-v3 turbo", detail: "Neural Engine · 1.5 GB download · set up once, about a minute", [wkStatus, wkButton]),
+        ], width: width)
+        addArrangedSubview(wkCard)
+        WhisperKitEngine.shared.onStateChange = { [weak self] in self?.reload() }
 
         setupButton.controlSize = .small
         let update: () -> Void = { [weak self] in
@@ -247,7 +258,20 @@ final class EnginePane: Pane {
 
     override func reload() {
         loading = true
-        engineControl.selectedSegment = settings.engine == .mlx ? 0 : 1
+        engineControl.selectedSegment = TranscriptionEngine.allCases.firstIndex(of: settings.engine) ?? 0
+
+        switch WhisperKitEngine.shared.state {
+        case .notInstalled:
+            showWhisperKit("● Not installed", Palette.bad, button: "Download")
+        case .downloading(let progress):
+            showWhisperKit("Downloading \(Int(progress * 100))%", Palette.secondary, button: nil)
+        case .loading:
+            showWhisperKit("Preparing…", Palette.secondary, button: nil)
+        case .ready:
+            showWhisperKit("● Ready", Palette.good, button: nil)
+        case .failed:
+            showWhisperKit("● Failed", Palette.bad, button: "Retry")
+        }
 
         if runtime.isBusy {
             runtimeStatus.stringValue = runtime.busyLabel
@@ -270,17 +294,18 @@ final class EnginePane: Pane {
         cppRows.forEach { $0.refresh() }
         keepLoaded.isOn = settings.keepModelLoaded
 
-        let showMLX = settings.engine == .mlx
-        let changed = mlxCard.isHidden == showMLX || cppCard.isHidden != showMLX
-        mlxCard.isHidden = !showMLX
-        cppCard.isHidden = showMLX
-        if changed { onResize?() }
+        let before = [wkCard.isHidden, mlxCard.isHidden, cppCard.isHidden]
+        wkCard.isHidden = settings.engine != .whisperKit
+        mlxCard.isHidden = settings.engine != .mlx
+        cppCard.isHidden = settings.engine != .whisperCpp
+        if before != [wkCard.isHidden, mlxCard.isHidden, cppCard.isHidden] { onResize?() }
         loading = false
     }
 
     @objc private func engineChanged() {
         guard !loading else { return }
-        settings.engine = engineControl.selectedSegment == 0 ? .mlx : .whisperCpp
+        settings.engine = TranscriptionEngine.allCases[engineControl.selectedSegment]
+        if settings.engine == .whisperKit { WhisperKitEngine.shared.prewarm() }
         if settings.engine == .mlx, settings.keepModelLoaded, runtime.readyPython() != nil {
             MLXEngine.shared.preload(repo: settings.mlxModel)
         }
@@ -291,6 +316,17 @@ final class EnginePane: Pane {
     @objc private func setUpRuntime() {
         runtime.provision()
         reload()
+    }
+
+    private func showWhisperKit(_ status: String, _ color: NSColor, button: String?) {
+        wkStatus.stringValue = status
+        wkStatus.textColor = color
+        wkButton.isHidden = button == nil
+        if let button { wkButton.title = button }
+    }
+
+    @objc private func installWhisperKit() {
+        WhisperKitEngine.shared.install()
     }
 }
 

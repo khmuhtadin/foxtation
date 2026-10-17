@@ -115,6 +115,15 @@ enum CloudCleanup {
         return reply
     }
 
+    /// Opens (or refreshes) the HTTPS connection so the next request skips the
+    /// TLS handshake. Fire and forget; the server answers 404.
+    static func warmUp() {
+        var request = URLRequest(url: server)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 5
+        URLSession.shared.dataTask(with: request).resume()
+    }
+
     /// Registers this Mac against the license and returns its activation ID.
     static func activate(_ licenseKey: String) async throws -> String {
         let label = Host.current().localizedName ?? "Mac"

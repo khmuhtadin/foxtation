@@ -20,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var phase: Phase = .idle
     private var currentCapture: URL?
     private var lastTranscript: String?
+    /// WhisperKit: transcribes while the user is still speaking.
+    private var stream: WhisperKitEngine.Session?
     /// The app the user is dictating into, captured when recording starts.
     private var target = DictationTarget(name: "", bundleID: "")
     /// Bumped on every finish/cancel so a stale transcription result is dropped.
@@ -65,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.refreshStatusItem()
         }
         MLXRuntime.shared.installWorkerScript()
+        if settings.engine == .whisperKit { WhisperKitEngine.shared.prewarm() }
         if settings.engine == .mlx, settings.keepModelLoaded, MLXRuntime.shared.readyPython() != nil {
             MLXEngine.shared.preload(repo: settings.mlxModel)
         }
@@ -206,6 +209,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         switch settings.engine {
+        case .whisperKit:
+            guard WhisperKitEngine.shared.isInstalled else {
+                hud.show(.error("Speech model not installed — open Settings › Engine"))
+                showSettings(.engine)
+                return
+            }
         case .mlx:
             guard MLXRuntime.shared.readyPython() != nil else {
                 hud.show(.error("MLX runtime not installed — open Settings › Engine and press Set Up"))
@@ -231,6 +240,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wireRecorder()
         let front = NSWorkspace.shared.frontmostApplication
         target = DictationTarget(name: front?.localizedName ?? "", bundleID: front?.bundleIdentifier ?? "")
+        if settings.engine == .whisperKit {
+            let stream = WhisperKitEngine.Session(language: settings.language)
+            self.stream = stream
+            recorder.onSamples = { stream.append($0) }
+        } else {
+            stream = nil
+            recorder.onSamples = nil
+        }
+        // Open the TLS connection now, so cleanup doesn't pay for it after release.
+        if settings.cloudCleanup, !settings.activationID.isEmpty { CloudCleanup.warmUp() }
         do {
             try recorder.start()
             phase = .recording
@@ -271,13 +290,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshStatusItem()
 
         let target = self.target
+        let stream = self.stream
+        self.stream = nil
         Task { [weak self] in
             guard let self else { return }
             defer { try? FileManager.default.removeItem(at: capture) }
 
             let raw: Transcript
             do {
-                raw = try await self.transcribe(audio: capture)
+                if let stream {
+                    raw = try await stream.finish()
+                } else {
+                    raw = try await self.transcribe(audio: capture)
+                }
             } catch {
                 await MainActor.run {
                     guard self.session == mySession else { return }  // cancelled meanwhile
@@ -328,6 +353,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cancelTranscription() {
         handsFree = false
+        stream = nil
+        recorder.onSamples = nil
         if phase == .recording {
             recorder.cancel()
             phase = .idle
@@ -344,6 +371,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func transcribe(audio: URL) async throws -> Transcript {
         switch settings.engine {
+        case .whisperKit:
+            let result = try await WhisperKitEngine.shared.transcribe(
+                try WhisperKitEngine.samples(of: audio),
+                language: settings.language == "auto" ? nil : settings.language)
+            return Transcript(text: result.text, language: result.language, duration: 0)
         case .mlx:
             let response = try await MLXEngine.shared.transcribe(
                 audio: audio,
@@ -604,7 +636,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             askedForAccessibility = true
             Permissions.requestAccessibility(prompt: true)
         }
-        if settings.engine == .mlx, MLXRuntime.shared.readyPython() == nil {
+        if settings.engine == .whisperKit, !WhisperKitEngine.shared.isInstalled {
+            hud.show(.error("Speech model not installed — open Settings › Engine and press Download"))
+        } else if settings.engine == .mlx, MLXRuntime.shared.readyPython() == nil {
             hud.show(.error("MLX runtime not installed — open Settings › Engine and press Set Up"))
         } else if settings.engine == .whisperCpp,
                   Transcriber.resolveBinary(configured: settings.whisperBinary) == nil {

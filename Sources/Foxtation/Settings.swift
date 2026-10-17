@@ -22,10 +22,11 @@ enum InsertMethod: String, CaseIterable {
 }
 
 enum TranscriptionEngine: String, CaseIterable {
-    case mlx, whisperCpp
+    case whisperKit, mlx, whisperCpp
     var label: String {
         switch self {
-        case .mlx:        return "MLX Whisper — Apple GPU, fastest on Apple silicon"
+        case .whisperKit: return "WhisperKit — Neural Engine, transcribes while you speak"
+        case .mlx:        return "MLX Whisper — Apple GPU"
         case .whisperCpp: return "whisper.cpp — ggml models, no Python"
         }
     }
@@ -103,7 +104,7 @@ final class Settings: ObservableObject {
 
     private init() {
         d.register(defaults: [
-            "engine": TranscriptionEngine.mlx.rawValue,
+            "engine": TranscriptionEngine.whisperKit.rawValue,
             "mlxModel": "mlx-community/whisper-large-v3-turbo",
             "keepModelLoaded": true,
             "uvPath": "",
@@ -132,7 +133,7 @@ final class Settings: ObservableObject {
         ])
 
         modelPath = d.string(forKey: "modelPath") ?? ""
-        engine = TranscriptionEngine(rawValue: d.string(forKey: "engine") ?? "") ?? .mlx
+        engine = TranscriptionEngine(rawValue: d.string(forKey: "engine") ?? "") ?? .whisperKit
         mlxModel = d.string(forKey: "mlxModel") ?? "mlx-community/whisper-large-v3-turbo"
         keepModelLoaded = d.bool(forKey: "keepModelLoaded")
         uvPath = d.string(forKey: "uvPath") ?? ""

@@ -25,7 +25,7 @@ func runHeadlessIfRequested() -> Bool {
     let settings = Settings.shared
     settings.persistsChanges = false
     if let engine = value(for: "--engine") {
-        settings.engine = engine == "cpp" ? .whisperCpp : .mlx
+        settings.engine = engine == "cpp" ? .whisperCpp : engine == "wk" ? .whisperKit : .mlx
     }
     if let model = value(for: "--model") {
         if settings.engine == .mlx { settings.mlxModel = model } else { settings.modelPath = model }
@@ -54,6 +54,15 @@ func runHeadlessIfRequested() -> Bool {
                                         duration: response.elapsed)
             case .whisperCpp:
                 transcript = try await Transcriber.transcribe(audio: audio, settings: settings)
+            case .whisperKit:
+                let samples = try WhisperKitEngine.samples(of: audio)
+                if arguments.contains("--realtime") {
+                    transcript = try await transcribeInRealTime(samples, language: settings.language)
+                } else {
+                    let result = try await WhisperKitEngine.shared.transcribe(
+                        samples, language: settings.language == "auto" ? nil : settings.language)
+                    transcript = Transcript(text: result.text, language: result.language, duration: 0)
+                }
             }
             let wall = Date().timeIntervalSince(started)
             if arguments.contains("--cleanup") {
@@ -65,7 +74,7 @@ func runHeadlessIfRequested() -> Bool {
             }
             FileHandle.standardError.write(Data(String(
                 format: "engine=%@ language=%@ wall=%.2fs\n",
-                settings.engine == .mlx ? settings.mlxModel : "whisper.cpp",
+                settings.engine == .mlx ? settings.mlxModel : settings.engine == .whisperKit ? "whisperkit" : "whisper.cpp",
                 transcript.language, wall).utf8))
         } catch {
             FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
@@ -80,14 +89,34 @@ func runHeadlessIfRequested() -> Bool {
     exit(exitCode)
 }
 
+/// `--realtime` (WhisperKit): feeds the clip at 1× speed in 100 ms buffers, as the
+/// recorder would, then "releases" and reports how long the text took after that.
+func transcribeInRealTime(_ samples: [Float], language: String) async throws -> Transcript {
+    _ = try await WhisperKitEngine.shared.load()
+    let session = WhisperKitEngine.Session(language: language)
+    let step = 1_600
+    let start = Date()
+    for offset in stride(from: 0, to: samples.count, by: step) {
+        session.append(Array(samples[offset..<min(offset + step, samples.count)]))
+        let due = start.addingTimeInterval(Double(offset + step) / 16_000)
+        let wait = due.timeIntervalSinceNow
+        if wait > 0 { try await Task.sleep(for: .seconds(wait)) }
+    }
+    let transcript = try await session.finish()
+    FileHandle.standardError.write(Data(String(format: "release→text=%.2fs\n", transcript.duration).utf8))
+    return transcript
+}
+
 /// `--cleanup`: runs the same pipeline as a real dictation into `bundleID`,
 /// cloud cleanup included, and prints every stage instead of pasting.
 func printCleanup(of raw: Transcript, settings: Settings, bundleID: String, library: Library) async throws {
     let name = library.groups.values.flatMap(\.apps).first { $0.bundleID == bundleID }?.name ?? bundleID
     let target = DictationTarget(name: name, bundleID: bundleID)
     let request = DictationPipeline.request(for: raw, target: target, settings: settings, library: library)
+    let started = Date()
     let cleaned = await DictationPipeline.cleanUp(raw, request: request,
                                                   licenseKey: settings.licenseKey, activationID: settings.activationID)
+    FileHandle.standardError.write(Data(String(format: "cleanup=%.2fs\n", Date().timeIntervalSince(started)).utf8))
     print("raw:     \(raw.text)")
     print("style:   \(request?.style?.rawValue ?? "-") (app: \(request?.app ?? "-"))")
     if let fallback = cleaned.fallback {
