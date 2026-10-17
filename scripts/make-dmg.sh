@@ -15,14 +15,11 @@ if ! security find-certificate -c Foxtation >/dev/null 2>&1; then
 fi
 FOXTATION_SIGN_IDENTITY=Foxtation ./build.sh
 
-STAGE=$(mktemp -d)
-cp -R dist/Foxtation.app "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
-
+# The installer window (background, icon spots, volume icon) is laid out by
+# dmgbuild from packaging/dmg/settings.py. Needs uv: brew install uv.
 DMG="dist/Foxtation-$VERSION.dmg"
 rm -f "$DMG"
-hdiutil create -quiet -volname "Foxtation" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
-rm -rf "$STAGE"
+uvx --quiet --from dmgbuild==1.6.5 dmgbuild -s packaging/dmg/settings.py "Foxtation" "$DMG"
 # The same image under a fixed name, attached to every release, so the website's
 # Download button (releases/latest/download/Foxtation.dmg) always gets the newest.
 cp "$DMG" dist/Foxtation.dmg
