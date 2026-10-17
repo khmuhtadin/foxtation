@@ -78,9 +78,9 @@ extension CleanupStyle {
     /// The Style screen's names.
     var label: String {
         switch self {
-        case .casual: return "Santai"
-        case .neutral: return "Netral"
-        case .formal: return "Rapi"
+        case .casual: return "Casual"
+        case .neutral: return "Neutral"
+        case .formal: return "Polished"
         case .literal: return "Literal"
         }
     }
@@ -96,9 +96,9 @@ extension CleanupStyle {
 
     var example: String {
         switch self {
-        case .casual: return "oke gw otw ya, 10 menit lagi sampe"
-        case .neutral: return "Oke, gw otw ya. 10 menit lagi sampe."
-        case .formal: return "Oke, saya sedang di jalan. Sekitar 10 menit lagi sampai."
+        case .casual: return "omw, be there in 10"
+        case .neutral: return "OMW, be there in 10."
+        case .formal: return "I’m on my way and will be there in about ten minutes."
         case .literal: return "git commit dash m fix upload retry"
         }
     }
