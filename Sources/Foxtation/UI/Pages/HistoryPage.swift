@@ -12,21 +12,13 @@ struct HistoryPage: View {
         let groups = Self.groups(filtered(entries))
 
         VStack(alignment: .leading, spacing: 0) {
-            Button { model.page = .home } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left").font(.system(size: 10, weight: .semibold))
-                    Text("Home")
-                }
-                .font(FXFont.detail.weight(.medium))
-                .foregroundStyle(Color.fxAccent)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, 10)
+            TextLink(title: "Home", symbol: "chevron.left") { model.page = .home }
+                .padding(.top, -8)
+                .padding(.bottom, 2)
 
             PageHeader(title: "History",
                        subtitle: entries.isEmpty ? nil : "\(Format.number(entries.count)) \(entries.count == 1 ? "dictation" : "dictations")") {
-                searchField
+                SearchField(placeholder: "Search history", text: queryState.projectedValue, width: 240)
             }
             .padding(.bottom, 22)
 
@@ -53,29 +45,6 @@ struct HistoryPage: View {
                 .scrollIndicators(.never)
             }
         }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.fxSecondary)
-            TextField("Search history", text: queryState.projectedValue)
-                .textFieldStyle(.plain)
-                .font(FXFont.body)
-            if !query.isEmpty {
-                Button { queryState.wrappedValue = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(Color.fxSecondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(width: 240)
-        .background(RoundedRectangle(cornerRadius: 7).fill(Color.fxWash))
-        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.fxSeparator))
     }
 
     private func filtered(_ entries: [Dictation]) -> [Dictation] {

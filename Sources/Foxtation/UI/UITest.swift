@@ -113,9 +113,7 @@ enum UITest {
         click(455, 367)
         step("× removes WhatsApp from Chat", library.groups[.chat]?.apps.contains { $0.name == "WhatsApp" } == false)
         let emoji = library.spokenEmoji
-        if let toggle = controls(in: window.contentView!).last(where: { $0.kind == "switch" }) {
-            click(toggle.frame.midX, toggle.frame.midY)
-        }
+        click(1084, 444)
         step("emoji switch flips spokenEmoji", library.spokenEmoji != emoji)
 
         // Settings
@@ -199,14 +197,13 @@ enum UITest {
         var view: NSView
     }
 
-    /// Clickable SwiftUI buttons (their key-view proxies), text fields and switches, top to bottom.
+    /// Clickable SwiftUI buttons (their key-view proxies, switches included) and text fields, top to bottom.
     static func controls(in host: NSView) -> [Control] {
         var found: [Control] = []
         func walk(_ view: NSView) {
             let name = "\(type(of: view))"
             let frame = view.convert(view.bounds, to: host)
             if name.contains("KeyViewProxy") { found.append(Control(kind: "button", frame: frame, view: view)) }
-            else if view is NSSwitch { found.append(Control(kind: "switch", frame: frame, view: view)) }
             else if let field = view as? NSTextField, field.isEditable { found.append(Control(kind: "field", frame: frame, view: view)) }
             else if view is NSTextView, (view as! NSTextView).isEditable { found.append(Control(kind: "textview", frame: frame, view: view)) }
             view.subviews.forEach(walk)

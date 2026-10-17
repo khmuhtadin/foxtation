@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 /// One dictation in a list: time · app · pasted text. Hovering shows play,
-/// copy and a ⋯ menu. Used by Home's TODAY list and the History page.
+/// copy and a ⋯ menu over the end of the text, so the text never reflows;
+/// right-click offers the same actions. Used by Home's TODAY list and History.
 struct HistoryRow: View {
     @ObservedObject var model: AppModel
     var dictation: Dictation
@@ -15,41 +16,59 @@ struct HistoryRow: View {
     var body: some View {
         HStack(spacing: 16) {
             Text(Format.time(dictation.date))
-                .font(FXFont.mono)
+                .font(FXFont.number)
                 .foregroundStyle(Color.fxSecondary)
-                .frame(width: 44, alignment: .leading)
+                .frame(width: 40, alignment: .leading)
             HStack(spacing: 7) {
                 AppDot(app: dictation.app)
-                Text(dictation.app.isEmpty ? "Unknown" : dictation.app)
+                Text(appName)
                     .font(FXFont.detail)
                     .foregroundStyle(Color.fxInk)
                     .lineLimit(1)
+                    .help(appName)
             }
-            .frame(width: 92, alignment: .leading)
+            .frame(width: 96, alignment: .leading)
             Text(dictation.text)
                 .font(FXFont.body)
                 .foregroundStyle(Color.fxInk)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if hovering { actions }
+                .help(dictation.text)
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
+        .overlay(alignment: .trailing) {
+            if hovering {
+                actions
+                    .padding(.leading, 12)
+                    .padding(.trailing, 10)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.fxWash)
+            }
+        }
         .background(hovering ? Color.fxWash : Color.clear)
         .contentShape(Rectangle())
         .onHover { hoveringState.wrappedValue = $0 }
+        .contextMenu {
+            Button("Copy text") { HistoryRow.copy(dictation.text) }
+            Button("Copy raw transcript") { HistoryRow.copy(dictation.raw) }
+            Divider()
+            Button("Delete", role: .destructive) { model.history.delete(dictation.id) }
+        }
     }
 
+    private var appName: String { dictation.app.isEmpty ? "Unknown" : dictation.app }
+
     private var actions: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             if let url = model.history.audioURL(for: dictation) {
-                iconButton("play", label: "Play recording") { HistoryAudio.play(url) }
+                IconButton(symbol: "play", label: "Play recording") { HistoryAudio.play(url) }
             }
-            iconButton(copied ? "checkmark" : "doc.on.doc", label: "Copy text") {
+            IconButton(symbol: copied ? "checkmark" : "doc.on.doc", label: "Copy text") {
                 HistoryRow.copy(dictation.text)
                 copiedState.wrappedValue = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copiedState.wrappedValue = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copiedState.wrappedValue = false }
             }
             Menu {
                 Button("Copy raw transcript") { HistoryRow.copy(dictation.raw) }
@@ -61,23 +80,11 @@ struct HistoryRow: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .frame(width: 24, height: 24)
+            .frame(width: 28, height: 28)
+            .help("More")
             .accessibilityLabel("More")
         }
         .foregroundStyle(Color.fxSecondary)
-    }
-
-    private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.fxSecondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(label)
-        .accessibilityLabel(label)
     }
 
     static func copy(_ text: String) {
@@ -109,13 +116,15 @@ struct HistoryEmptyCard: View {
     var detail: String
 
     var body: some View {
-        FXCard(padding: 28) {
-            VStack(spacing: 8) {
+        FXCard(padding: 32) {
+            VStack(spacing: 6) {
                 Image(systemName: symbol)
                     .font(.system(size: 20))
                     .foregroundStyle(Color.fxSecondary)
-                Text(title).font(FXFont.body.weight(.medium)).foregroundStyle(Color.fxInk)
+                    .padding(.bottom, 4)
+                Text(title).font(FXFont.cardTitle).foregroundStyle(Color.fxInk)
                 Text(detail).font(FXFont.detail).foregroundStyle(Color.fxSecondary)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
         }

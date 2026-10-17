@@ -50,10 +50,10 @@ struct StylePage: View {
                     Button { addApps() } label: {
                         Text("+ Add app")
                             .font(FXFont.detail.weight(.medium))
-                            .foregroundStyle(Color.fxInk)
+                            .foregroundStyle(Color.fxAccent)
                             .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .overlay(Capsule().strokeBorder(Color.fxSeparator))
+                            .frame(height: 26)
+                            .overlay(Capsule().strokeBorder(Color.fxSeparator, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
                             .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -63,7 +63,7 @@ struct StylePage: View {
                 RowsCard {
                     SettingRow(title: "Keep emoji I say out loud",
                                detail: "“emoji ketawa” becomes 😂 instead of the words.") {
-                        FXSwitch(isOn: Binding(get: { library.spokenEmoji }, set: { library.spokenEmoji = $0 }))
+                        FXSwitch(label: "Keep emoji I say out loud", isOn: Binding(get: { library.spokenEmoji }, set: { library.spokenEmoji = $0 }))
                     }
                 }
             }
@@ -112,6 +112,13 @@ struct StyleCard: View {
     var style: CleanupStyle
     var selected: Bool
     var select: () -> Void
+    // Plain `State`: this toolchain has no SwiftUI macro plugin for `@State`.
+    private let hoverState = State(initialValue: false)
+
+    private var borderColor: Color {
+        if selected { return .fxAccent }
+        return hoverState.wrappedValue ? .fxTrack : .fxSeparator
+    }
 
     var body: some View {
         Button(action: select) {
@@ -135,11 +142,10 @@ struct StyleCard: View {
                     .padding(.vertical, 10)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.fxWash))
             }
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.fxCard))
-            .overlay(RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(selected ? Color.fxAccent : Color.fxSeparator, lineWidth: selected ? 1.5 : 1))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(borderColor, lineWidth: selected ? 1.5 : 1))
             .overlay(alignment: .topTrailing) {
                 if selected {
                     Image(systemName: "checkmark")
@@ -147,12 +153,13 @@ struct StyleCard: View {
                         .foregroundStyle(Color.fxCard)
                         .frame(width: 16, height: 16)
                         .background(Circle().fill(Color.fxAccent))
-                        .padding(12)
+                        .padding(14)
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+        .onHover { hoverState.wrappedValue = $0 }
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

@@ -7,11 +7,11 @@ struct SoundSettings: View {
         VStack(alignment: .leading, spacing: 20) {
             RowsCard {
                 SettingRow(title: "Start and stop sounds", detail: "A soft click when recording starts and ends.") {
-                    FXSwitch(isOn: model.setting(\.playSounds))
+                    FXSwitch(label: "Start and stop sounds", isOn: model.setting(\.playSounds))
                 }
                 RowDivider()
                 SettingRow(title: "Floating indicator", detail: "The pill at the bottom of the screen while you dictate.") {
-                    FXSwitch(isOn: model.setting(\.showHUD))
+                    FXSwitch(label: "Floating indicator", isOn: model.setting(\.showHUD))
                 }
             }
 
@@ -24,7 +24,7 @@ struct SoundSettings: View {
                     }
                     RowDivider()
                     SettingRow(title: "Restore clipboard afterwards", detail: "Puts back what you had copied before the paste.") {
-                        FXSwitch(isOn: model.setting(\.restoreClipboard))
+                        FXSwitch(label: "Restore clipboard afterwards", isOn: model.setting(\.restoreClipboard))
                             .disabled(model.settings.insertMethod == .type)
                     }
                 }

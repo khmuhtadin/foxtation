@@ -56,11 +56,11 @@ struct SnippetsPage: View {
         HStack(alignment: .center, spacing: 24) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Say a cue. Drop the whole text.")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.fxCard)
-                Text("Save anything you type often — an address, a standup template, a prompt. Speak its cue mid-sentence and Foxtation pastes it in.")
+                    .font(FXFont.headline)
+                    .foregroundStyle(Color.fxOnFeature)
+                Text("Save anything you type often, like an address, a standup template or a prompt. Say its cue as you dictate and Foxtation pastes it in.")
                     .font(FXFont.body)
-                    .foregroundStyle(Color.fxCard.opacity(0.78))
+                    .foregroundStyle(Color.fxOnFeature.opacity(0.78))
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -74,24 +74,24 @@ struct SnippetsPage: View {
                     HStack(spacing: 10) {
                         Text("“\(cue)”")
                             .font(FXFont.detail.italic())
-                            .foregroundStyle(Color.fxCard)
+                            .foregroundStyle(Color.fxOnFeature)
                             .lineLimit(1)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 6)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.fxCard.opacity(0.16)))
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.fxOnFeature.opacity(0.16)))
                         Image(systemName: "arrow.right")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(Color.fxAccent)
                         Text(SnippetsFormat.oneLine(text))
                             .font(FXFont.detail)
-                            .foregroundStyle(Color.fxCard)
+                            .foregroundStyle(Color.fxOnFeature)
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 6)
                             .frame(maxWidth: 190, alignment: .leading)
                             .fixedSize(horizontal: true, vertical: false)
-                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.fxCard.opacity(0.28)))
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.fxOnFeature.opacity(0.28)))
                     }
                 }
             }
@@ -99,7 +99,7 @@ struct SnippetsPage: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.fxInk))
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.fxFeature))
     }
 
     // MARK: - Table
@@ -133,18 +133,18 @@ struct SnippetsPage: View {
                     .frame(width: 170, alignment: .leading)
                 Text(SnippetsFormat.oneLine(snippet.text))
                     .font(FXFont.body)
-                    .foregroundStyle(Color.fxInk.opacity(0.85))
+                    .foregroundStyle(Color.fxInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .help(snippet.text)
                 Spacer(minLength: 12)
                 Text("\(Format.number(snippet.used))×")
-                    .font(FXFont.caption)
+                    .font(FXFont.number)
                     .foregroundStyle(Color.fxSecondary)
-                    .monospacedDigit()
                     .frame(width: 60, alignment: .trailing)
             }
             .padding(.horizontal, 8)
-            .frame(height: 51)
+            .frame(height: 52)
             .background(RoundedRectangle(cornerRadius: 6).fill(state.hovered == snippet.id ? Color.fxWash : .clear))
             .contentShape(Rectangle())
         }
@@ -222,7 +222,7 @@ struct SnippetsEditor: View {
         let cueError = DictionaryRules.problem(draft.cue, others: otherCues)
         VStack(alignment: .leading, spacing: 18) {
             Text(existing == nil ? "New snippet" : "Edit snippet")
-                .font(.system(size: 15, weight: .semibold))
+                .font(FXFont.headline)
                 .foregroundStyle(Color.fxInk)
 
             DictionaryField(label: "Cue", error: cueError) {

@@ -58,7 +58,7 @@ struct InsightsPage: View {
         let ratio = Double(wpm) / Stats.typingWPM
 
         return InsightsCard(title: "Speaking speed") {
-            InsightsBigNumber(value: "\(wpm)", unit: "wpm")
+            BigNumber(value: wpm > 0 ? "\(wpm)" : "—", unit: wpm > 0 ? "wpm" : nil)
             VStack(spacing: 10) {
                 speedBar("You", wpm, fraction: Double(wpm) / top, color: .fxAccent)
                 speedBar("Typing", typing, fraction: Double(typing) / top, color: .fxTrack)
@@ -75,14 +75,14 @@ struct InsightsPage: View {
         HStack(spacing: 12) {
             Text(label).font(FXFont.detail).foregroundStyle(Color.fxInk).frame(width: 50, alignment: .leading)
             InsightsBar(fraction: fraction, color: color)
-            Text("\(value)").font(FXFont.mono).foregroundStyle(Color.fxInk).frame(width: 34, alignment: .trailing)
+            Text("\(value)").font(FXFont.number).foregroundStyle(Color.fxInk).frame(width: 34, alignment: .trailing)
         }
     }
 
     private func fixesCard(_ entries: [Dictation]) -> some View {
         let fixes = Stats.fixes(entries)
         return InsightsCard(title: "Fixes by Foxtation Cloud") {
-            InsightsBigNumber(value: Format.number(fixes.total))
+            BigNumber(value: Format.number(fixes.total))
             VStack(spacing: 8) {
                 InsightsLine(label: "Filler words removed", value: Format.number(fixes.fillersRemoved))
                 InsightsLine(label: "Punctuation & casing", value: Format.number(fixes.formattingFixes))
@@ -93,7 +93,7 @@ struct InsightsPage: View {
 
     private func wordsCard(_ entries: [Dictation]) -> some View {
         InsightsCard(title: "Words dictated") {
-            InsightsBigNumber(value: Format.number(Stats.words(entries)))
+            BigNumber(value: Format.number(Stats.words(entries)))
             VStack(spacing: 8) {
                 InsightsLine(label: "Typing time saved", value: Format.duration(minutes: Stats.minutesSaved(entries)))
                 InsightsLine(label: "Dictations", value: Format.number(entries.count))
@@ -109,7 +109,7 @@ struct InsightsPage: View {
         let apps = Stats.appCount(entries)
         let top = shares.map(\.share).max() ?? 1
 
-        return FXCard(padding: 18) {
+        return FXCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     Text("By app").font(FXFont.cardTitle).foregroundStyle(Color.fxInk)
@@ -131,7 +131,7 @@ struct InsightsPage: View {
                                     .frame(width: 80, alignment: .leading)
                                 InsightsBar(fraction: share.share / top, color: share.isOther ? .fxTrack : .fxAccent)
                                 Text("\(Int((share.share * 100).rounded()))%")
-                                    .font(FXFont.mono)
+                                    .font(FXFont.number)
                                     .foregroundStyle(Color.fxInk)
                                     .frame(width: 40, alignment: .trailing)
                             }
@@ -147,16 +147,18 @@ struct InsightsPage: View {
         let current = Stats.currentStreak(entries, now: now)
         let longest = Stats.longestStreak(entries)
 
-        return FXCard(padding: 18) {
+        return FXCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     Text(current > 0 ? "\(current)-day streak" : "No streak yet")
                         .font(FXFont.cardTitle)
                         .foregroundStyle(Color.fxInk)
                     Spacer()
-                    Text("Longest · \(longest) \(longest == 1 ? "day" : "days")")
-                        .font(FXFont.detail)
-                        .foregroundStyle(Color.fxSecondary)
+                    if longest > 0 {
+                        Text("Longest · \(longest) \(longest == 1 ? "day" : "days")")
+                            .font(FXFont.detail)
+                            .foregroundStyle(Color.fxSecondary)
+                    }
                 }
                 InsightsHeatmap(counts: Stats.dayCounts(entries), now: Calendar.current.startOfDay(for: now))
             }
@@ -167,31 +169,18 @@ struct InsightsPage: View {
 
 // MARK: - Pieces
 
-/// A top-row card: small title, big number, then details.
+/// A top-row card: small title over a big number, then details.
 struct InsightsCard<Content: View>: View {
     var title: String
     @ViewBuilder var content: Content
 
     var body: some View {
-        FXCard(padding: 18) {
-            VStack(alignment: .leading, spacing: 16) {
+        FXCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(FXFont.detail).foregroundStyle(Color.fxSecondary)
-                    .padding(.bottom, -8)
-                content
+                VStack(alignment: .leading, spacing: 16) { content }
             }
             .frame(maxHeight: .infinity, alignment: .top)
-        }
-    }
-}
-
-struct InsightsBigNumber: View {
-    var value: String
-    var unit: String?
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(value).font(.system(size: 30, weight: .semibold).monospacedDigit()).foregroundStyle(Color.fxInk)
-            if let unit { Text(unit).font(FXFont.body).foregroundStyle(Color.fxSecondary) }
         }
     }
 }
@@ -205,7 +194,7 @@ struct InsightsLine: View {
         HStack {
             Text(label).font(FXFont.detail).foregroundStyle(Color.fxInk)
             Spacer()
-            Text(value).font(FXFont.mono).foregroundStyle(Color.fxInk)
+            Text(value).font(FXFont.number).foregroundStyle(Color.fxInk)
         }
     }
 }

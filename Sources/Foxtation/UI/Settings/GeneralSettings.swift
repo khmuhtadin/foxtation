@@ -16,7 +16,7 @@ struct GeneralSettings: View {
                 pushToTalkRow
                 RowDivider()
                 SettingRow(title: "Hold right ⌥ to talk", detail: "Double-tap it for hands-free.") {
-                    FXSwitch(isOn: model.setting(\.holdRightOption))
+                    FXSwitch(label: "Hold right ⌥ to talk", isOn: model.setting(\.holdRightOption))
                 }
                 RowDivider()
                 SettingRow(title: "Microphone", detail: model.microphoneName) {
@@ -31,11 +31,11 @@ struct GeneralSettings: View {
                 }
                 RowDivider()
                 SettingRow(title: "Translate to English", detail: "Paste English whatever language you speak.") {
-                    FXSwitch(isOn: model.setting(\.translate))
+                    FXSwitch(label: "Translate to English", isOn: model.setting(\.translate))
                 }
                 RowDivider()
                 SettingRow(title: "Launch at login", detail: "Keep Foxtation ready in the menu bar.") {
-                    FXSwitch(isOn: model.setting(\.launchAtLogin))
+                    FXSwitch(label: "Launch at login", isOn: model.setting(\.launchAtLogin))
                 }
             }
 

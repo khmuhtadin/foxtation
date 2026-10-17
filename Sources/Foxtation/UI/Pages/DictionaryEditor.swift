@@ -38,7 +38,7 @@ struct DictionaryField<Content: View>: View {
             Text(label).font(FXFont.detail.weight(.medium)).foregroundStyle(Color.fxSecondary)
             content
             if let error {
-                Text(error).font(FXFont.caption).foregroundStyle(Color.fxBad)
+                Label(error, systemImage: "exclamationmark.circle").font(FXFont.caption).foregroundStyle(Color.fxBad)
             }
         }
     }
@@ -59,7 +59,7 @@ struct DictionaryTextField: View {
             .font(FXFont.body)
             .foregroundStyle(Color.fxInk)
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .frame(height: 30)
             .background(RoundedRectangle(cornerRadius: 7).fill(Color.fxWash))
             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(invalid ? Color.fxBad : Color.fxSeparator))
     }
@@ -138,7 +138,7 @@ struct DictionaryEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.fxInk)
+            Text(title).font(FXFont.headline).foregroundStyle(Color.fxInk)
 
             if isNew {
                 Picker("", selection: $draft.isReplacement) {
