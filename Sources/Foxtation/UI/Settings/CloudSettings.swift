@@ -13,7 +13,7 @@ struct CloudSettings: View {
                 }
                 RowDivider()
                 SettingRow(title: "Skip when there’s nothing to fix",
-                           detail: "Pastes short phrases (up to 4 words) right away when there are no filler words, self-corrections, lists or spoken emoji. Rapi style always uses the cloud.") {
+                           detail: "Pastes short phrases (up to 4 words) right away when there are no filler words, self-corrections, lists or spoken emoji. Polished style always uses the cloud.") {
                     FXSwitch(label: "Skip when there’s nothing to fix", isOn: model.setting(\.skipCleanWhenNothingToFix))
                 }
                 RowDivider()

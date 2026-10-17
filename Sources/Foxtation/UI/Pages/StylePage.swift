@@ -62,7 +62,7 @@ struct StylePage: View {
 
                 RowsCard {
                     SettingRow(title: "Keep emoji I say out loud",
-                               detail: "“emoji ketawa” becomes 😂 instead of the words.") {
+                               detail: "“thumbs up emoji” becomes 👍 instead of the words.") {
                         FXSwitch(label: "Keep emoji I say out loud", isOn: Binding(get: { library.spokenEmoji }, set: { library.spokenEmoji = $0 }))
                     }
                 }
