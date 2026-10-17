@@ -58,14 +58,31 @@ final class Settings: ObservableObject {
 
     static let shared = Settings()
 
+    /// What Foxtation transcribes (Whisper codes), in menu order.
     static let languages: [(code: String, label: String)] = [
-        ("auto", "Auto detect"), ("en", "English"), ("id", "Indonesian"),
-        ("ms", "Malay"), ("zh", "Chinese"), ("ja", "Japanese"), ("ko", "Korean"),
-        ("es", "Spanish"), ("fr", "French"), ("de", "German"), ("pt", "Portuguese"),
-        ("ru", "Russian"), ("ar", "Arabic"), ("hi", "Hindi"), ("th", "Thai"),
-        ("vi", "Vietnamese"), ("tr", "Turkish"), ("it", "Italian"), ("nl", "Dutch"),
-        ("pl", "Polish"),
+        ("en", "English"), ("id", "Indonesian"), ("ms", "Malay"),
+        ("de", "German"), ("fr", "French"), ("es", "Spanish"), ("it", "Italian"),
+        ("pt", "Portuguese"), ("nl", "Dutch"), ("sv", "Swedish"), ("da", "Danish"),
+        ("no", "Norwegian"), ("fi", "Finnish"), ("pl", "Polish"), ("tr", "Turkish"),
+        ("ru", "Russian"), ("ja", "Japanese"), ("ko", "Korean"), ("zh", "Chinese"),
+        ("ar", "Arabic"), ("hi", "Hindi"), ("th", "Thai"),
+        ("vi", "Vietnamese"),
     ]
+
+    static func label(for code: String) -> String {
+        languages.first { $0.code == code }?.label ?? code
+    }
+
+    /// The Mac's own languages plus English, for a first launch.
+    static func defaultSpokenLanguages() -> [String] {
+        var codes: [String] = []
+        for identifier in Locale.preferredLanguages + ["en"] {
+            var code = Locale(identifier: identifier).language.languageCode?.identifier ?? ""
+            if code == "nb" || code == "nn" { code = "no" }
+            if languages.contains(where: { $0.code == code }), !codes.contains(code) { codes.append(code) }
+        }
+        return codes
+    }
 
     /// Fired after any value changes so the app can re-register the hot key etc.
     var onChange: (() -> Void)?
@@ -75,7 +92,10 @@ final class Settings: ObservableObject {
     var keepModelLoaded: Bool { didSet { persist("keepModelLoaded", keepModelLoaded) } }
     var uvPath: String { didSet { persist("uvPath", uvPath) } }
     var modelPath: String { didSet { persist("modelPath", modelPath) } }
+    /// "auto" detects it among `spokenLanguages`; a code always uses that language.
     var language: String { didSet { persist("language", language) } }
+    /// The languages this person speaks. Never empty.
+    var spokenLanguages: [String] { didSet { persist("spokenLanguages", spokenLanguages) } }
     var translate: Bool { didSet { persist("translate", translate) } }
     var triggerMode: TriggerMode { didSet { persist("triggerMode", triggerMode.rawValue) } }
     var hotKeyCode: UInt32 { didSet { persist("hotKeyCode", Int(hotKeyCode)) } }
@@ -141,6 +161,9 @@ final class Settings: ObservableObject {
         keepModelLoaded = d.bool(forKey: "keepModelLoaded")
         uvPath = d.string(forKey: "uvPath") ?? ""
         language = d.string(forKey: "language") ?? "auto"
+        spokenLanguages = d.stringArray(forKey: "spokenLanguages") ?? Self.defaultSpokenLanguages()
+        // A language pinned before this list existed stays one of yours.
+        if language != "auto", !spokenLanguages.contains(language) { spokenLanguages.append(language) }
         translate = d.bool(forKey: "translate")
         triggerMode = TriggerMode(rawValue: d.string(forKey: "triggerMode") ?? "") ?? .toggle
         hotKeyCode = UInt32(d.integer(forKey: "hotKeyCode"))

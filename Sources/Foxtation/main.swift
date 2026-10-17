@@ -31,6 +31,7 @@ func runHeadlessIfRequested() -> Bool {
         if settings.engine == .mlx { settings.mlxModel = model } else { settings.modelPath = model }
     }
     if let language = value(for: "--language") { settings.language = language }
+    if let languages = value(for: "--languages") { settings.spokenLanguages = languages.split(separator: ",").map(String.init) }
     if arguments.contains("--translate") { settings.translate = true }
     if let prompt = value(for: "--prompt") { settings.initialPrompt = prompt }
 
@@ -56,14 +57,12 @@ func runHeadlessIfRequested() -> Bool {
                 transcript = try await Transcriber.transcribe(audio: audio, settings: settings)
             case .whisperKit:
                 let samples = try WhisperKitEngine.samples(of: audio)
-                // Dictionary hints for Whisper cost ~0.3 s and drop punctuation;
-                // the pipeline fixes near-miss spellings locally instead.
-                let vocabulary: [String] = []
                 if arguments.contains("--realtime") {
-                    transcript = try await transcribeInRealTime(samples, language: settings.language, vocabulary: vocabulary)
+                    transcript = try await transcribeInRealTime(samples, settings: settings)
                 } else {
                     let result = try await WhisperKitEngine.shared.transcribe(
-                        samples, language: settings.language == "auto" ? nil : settings.language, vocabulary: vocabulary)
+                        samples, language: settings.language == "auto" ? nil : settings.language,
+                        among: settings.spokenLanguages)
                     transcript = Transcript(text: result.text, language: result.language, duration: 0)
                 }
             }
@@ -94,9 +93,9 @@ func runHeadlessIfRequested() -> Bool {
 
 /// `--realtime` (WhisperKit): feeds the clip at 1× speed in 100 ms buffers, as the
 /// recorder would, then "releases" and reports how long the text took after that.
-func transcribeInRealTime(_ samples: [Float], language: String, vocabulary: [String]) async throws -> Transcript {
+func transcribeInRealTime(_ samples: [Float], settings: Settings) async throws -> Transcript {
     _ = try await WhisperKitEngine.shared.load()
-    let session = WhisperKitEngine.Session(language: language, vocabulary: vocabulary)
+    let session = WhisperKitEngine.Session(language: settings.language, among: settings.spokenLanguages)
     let step = 1_600
     let start = Date()
     for offset in stride(from: 0, to: samples.count, by: step) {
@@ -169,6 +168,46 @@ if let index = CommandLine.arguments.firstIndex(of: "--render-window"), index + 
             exit(1)
         }
     }
+}
+
+// Hidden: `Foxtation --eval [--language L] [--languages a,b] a.wav b.wav …` streams each
+// clip through a dictation session (without waiting in real time) and prints
+// "file<TAB>language<TAB>seconds after release<TAB>text" per clip. For accuracy tests.
+if let index = CommandLine.arguments.firstIndex(of: "--eval") {
+    let arguments = Array(CommandLine.arguments[(index + 1)...])
+    func value(_ key: String) -> String? {
+        guard let i = arguments.firstIndex(of: key), i + 1 < arguments.count else { return nil }
+        return arguments[i + 1]
+    }
+    let environment = ProcessInfo.processInfo.environment
+    let language = value("--language") ?? "auto"
+    let languages = value("--languages").map { $0.split(separator: ",").map(String.init) } ?? []
+    let files = arguments.filter { $0.hasSuffix(".wav") }
+    let semaphore = DispatchSemaphore(value: 0)
+    Task {
+        _ = try? await WhisperKitEngine.shared.load()
+        for file in files {
+            do {
+                let samples = try WhisperKitEngine.samples(of: URL(fileURLWithPath: file))
+                let session = WhisperKitEngine.Session(language: language, among: languages)
+                for offset in stride(from: 0, to: samples.count, by: 1_600) {
+                    session.append(Array(samples[offset..<min(offset + 1_600, samples.count)]))
+                }
+                // Let the session catch up on the chunks it cut, as it would while you talk.
+                let wait = environment["FOX_WAIT"].flatMap(Double.init) ?? 0.25
+                try await Task.sleep(for: .seconds(Double(samples.count) / 16_000 * wait))
+                let transcript = try await session.finish()
+                print("\(file)\t\(transcript.language)\t\(String(format: "%.2f", transcript.duration))\t\(transcript.text)")
+            } catch {
+                print("\(file)\terror\t0\t\(error.localizedDescription)")
+            }
+        }
+        semaphore.signal()
+    }
+    while semaphore.wait(timeout: .now()) == .timedOut {
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+    }
+    exit(0)
 }
 
 // Hidden: `Foxtation --ui-test [--dump]` clicks through the window with throwaway data and exits.

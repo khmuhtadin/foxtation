@@ -125,14 +125,13 @@ enum DictationPipeline {
     static let listCues = ["pertama", "kedua", "ketiga", "first", "second", "third"]
 
     /// Whether cloud cleanup would change anything Foxtation can't do itself.
+    /// A misheard word ("batch kent" for "backend") can't be spotted here, so
+    /// only a short phrase with nothing else to fix stays local.
     static func needsCloud(_ text: String, style: CleanupStyle?) -> Bool {
         if style == .formal { return true }  // rewording needs the model
         let phrases = fillers + corrections + listCues + ["emoji"]
         if phrases.contains(where: { Library.replacingPhrase($0, with: "", in: text).count > 0 }) { return true }
-        // A long stretch with no sentence punctuation reads as a run-on.
-        let words = Dictation.wordCount(text)
-        let stops = text.filter { ".?!".contains($0) }.count
-        return words > 25 && stops == 0
+        return Dictation.wordCount(text) > 4
     }
 
     /// The parts of a style simple enough to apply here.

@@ -8,12 +8,12 @@ struct CloudSettings: View {
         VStack(alignment: .leading, spacing: 12) {
             RowsCard {
                 SettingRow(title: "Cloud cleanup",
-                           detail: "Foxtation Cloud removes filler words, applies your self-corrections and fixes punctuation before pasting. Off: the raw on-device transcript is pasted.") {
+                           detail: "Foxtation Cloud fixes misheard words, removes filler words, applies your self-corrections and fixes punctuation before pasting. Off: the raw on-device transcript is pasted.") {
                     FXSwitch(label: "Cloud cleanup", isOn: model.setting(\.cloudCleanup))
                 }
                 RowDivider()
                 SettingRow(title: "Skip when there’s nothing to fix",
-                           detail: "Pastes right away when there are no filler words, self-corrections, lists or spoken emoji. Rapi style always uses the cloud.") {
+                           detail: "Pastes short phrases (up to 4 words) right away when there are no filler words, self-corrections, lists or spoken emoji. Rapi style always uses the cloud.") {
                     FXSwitch(label: "Skip when there’s nothing to fix", isOn: model.setting(\.skipCleanWhenNothingToFix))
                 }
                 RowDivider()
