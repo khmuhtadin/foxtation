@@ -1,6 +1,6 @@
 cask "foxtation" do
-  version "0.4.1"
-  sha256 "e397fb825780f254ec62dee251114cb6cee09222c528d522d2cc67cd33dd93ad"
+  version "0.4.2"
+  sha256 "43c23021672180b3019a1673f503976a38b2738d3c7ac0b905ea3c9a522e0181"
 
   url "https://github.com/khmuhtadin/foxtation/releases/download/v#{version}/Foxtation-#{version}.dmg"
   name "Foxtation"
