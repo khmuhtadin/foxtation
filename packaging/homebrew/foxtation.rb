@@ -4,7 +4,7 @@ cask "foxtation" do
 
   url "https://github.com/khmuhtadin/foxtation/releases/download/v#{version}/Foxtation-#{version}.dmg"
   name "Foxtation"
-  desc "Fast voice dictation for Indonesian and English"
+  desc "Voice dictation for Mac in 23 languages"
   homepage "https://github.com/khmuhtadin/foxtation"
 
   depends_on arch: :arm64
